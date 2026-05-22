@@ -8,7 +8,28 @@ export const Route = createFileRoute("/leaderboard")({
   component: LeaderboardPage,
 });
 
-type Row = { user_id: string; username: string; total_points: number; exact_count: number; sign_count: number };
+type Row = {
+  user_id: string;
+  username: string;
+  total_points: number;
+  exact_count: number;
+  sign_count: number;
+  side_bet_count?: number;
+  side_bet_points?: number;
+};
+type PredictionWithMatch = {
+  user_id: string;
+  predicted_home: number;
+  predicted_away: number;
+  matches: {
+    home_score: number | null;
+    away_score: number | null;
+  } | null;
+};
+type SideBetAnswer = {
+  user_id: string;
+  points: number;
+};
 
 function LeaderboardPage() {
   const { user, loading } = useAuth();
@@ -20,8 +41,23 @@ function LeaderboardPage() {
   }, [loading, user, navigate]);
 
   const load = async () => {
-    const { data } = await supabase.from("leaderboard").select("*");
-    const sorted = ((data ?? []) as Row[]).sort((a, b) =>
+    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }] = await Promise.all([
+      supabase.from("leaderboard").select("*"),
+      supabase
+        .from("predictions")
+        .select("user_id, predicted_home, predicted_away, matches(home_score, away_score)"),
+      (supabase as any).from("side_bet_answers").select("user_id, points"),
+    ]);
+    const stats = buildPredictionStats((predictions ?? []) as unknown as PredictionWithMatch[]);
+    const sideBetStats = buildSideBetStats((sideBetAnswers ?? []) as SideBetAnswer[]);
+    const sorted = ((leaderboard ?? []) as Row[]).map(row => ({
+      ...row,
+      total_points: (stats[row.user_id]?.points ?? 0) + (sideBetStats[row.user_id]?.points ?? 0),
+      exact_count: stats[row.user_id]?.exact ?? 0,
+      sign_count: stats[row.user_id]?.sign ?? 0,
+      side_bet_count: sideBetStats[row.user_id]?.count ?? 0,
+      side_bet_points: sideBetStats[row.user_id]?.points ?? 0,
+    })).sort((a, b) =>
       b.total_points - a.total_points || b.exact_count - a.exact_count
     );
     setRows(sorted);
@@ -30,12 +66,19 @@ function LeaderboardPage() {
   useEffect(() => {
     if (!user) return;
     load();
+    const interval = window.setInterval(load, 5000);
+    window.addEventListener("focus", load);
     const ch = supabase
       .channel("lb")
       .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, load)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", load);
+      supabase.removeChannel(ch);
+    };
   }, [user]);
 
   if (!user) return null;
@@ -69,7 +112,7 @@ function LeaderboardPage() {
               <div className="flex-1">
                 <div className="font-semibold">{r.username}</div>
                 <div className="text-xs text-muted-foreground">
-                  {r.exact_count} exakt · {r.sign_count} rätt tecken
+                  {r.sign_count} Rätt 1X2 (1p) · {r.exact_count} Rätt resultat (2p) · {r.side_bet_count ?? 0} Rätt sidospel ({r.side_bet_points ?? 0}p)
                 </div>
               </div>
               <div className="text-right">
@@ -82,4 +125,52 @@ function LeaderboardPage() {
       )}
     </div>
   );
+}
+
+function buildPredictionStats(predictions: PredictionWithMatch[]) {
+  const stats: Record<string, { exact: number; sign: number; points: number }> = {};
+
+  for (const prediction of predictions) {
+    const match = prediction.matches;
+    if (!match || match.home_score === null || match.away_score === null) continue;
+
+    const userStats = stats[prediction.user_id] ?? { exact: 0, sign: 0, points: 0 };
+    const exact =
+      prediction.predicted_home === match.home_score &&
+      prediction.predicted_away === match.away_score;
+    const predictedSign = getSign(prediction.predicted_home, prediction.predicted_away);
+    const actualSign = getSign(match.home_score, match.away_score);
+
+    if (exact) {
+      userStats.exact += 1;
+      userStats.points += 3;
+    } else if (predictedSign === actualSign) {
+      userStats.points += 1;
+    }
+    if (predictedSign === actualSign) userStats.sign += 1;
+
+    stats[prediction.user_id] = userStats;
+  }
+
+  return stats;
+}
+
+function getSign(home: number, away: number) {
+  if (home > away) return "1";
+  if (home < away) return "2";
+  return "X";
+}
+
+function buildSideBetStats(answers: SideBetAnswer[]) {
+  const stats: Record<string, { count: number; points: number }> = {};
+
+  for (const answer of answers) {
+    if (answer.points <= 0) continue;
+    const userStats = stats[answer.user_id] ?? { count: 0, points: 0 };
+    userStats.count += 1;
+    userStats.points += answer.points;
+    stats[answer.user_id] = userStats;
+  }
+
+  return stats;
 }

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Lock, Clock, Check } from "lucide-react";
+import { Lock, Clock, Check, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: MatchesPage,
@@ -34,6 +34,7 @@ function MatchesPage() {
   const [lockTime, setLockTime] = useState<Date | null>(null);
   const [now, setNow] = useState(new Date());
   const [fetched, setFetched] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -68,6 +69,14 @@ function MatchesPage() {
     return Object.entries(g).sort(([a],[b]) => a.localeCompare(b));
   }, [matches]);
 
+  useEffect(() => {
+    if (grouped.length === 0) return;
+    setOpenGroups(current => {
+      if (Object.keys(current).length > 0) return current;
+      return { [grouped[0][0]]: true };
+    });
+  }, [grouped]);
+
   if (loading || !user) return null;
 
   return (
@@ -93,18 +102,30 @@ function MatchesPage() {
 
       {grouped.map(([group, ms]) => (
         <section key={group} className="space-y-3">
-          <h2 className="font-display text-xl text-accent">Grupp {group}</h2>
-          <div className="space-y-2.5">
-            {ms.map(m => (
-              <MatchCard
-                key={m.id}
-                match={m}
-                pred={preds[m.id]}
-                locked={locked}
-                onSave={(p) => setPreds(s => ({ ...s, [m.id]: p }))}
-              />
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setOpenGroups(current => ({ ...current, [group]: !current[group] }))}
+            className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left transition hover:bg-card"
+          >
+            <span className="font-display text-xl text-accent">Grupp {group}</span>
+            <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {ms.length} matcher
+              <ChevronDown className={`size-4 transition-transform ${openGroups[group] ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+          {openGroups[group] && (
+            <div className="space-y-2.5">
+              {ms.map(m => (
+                <MatchCard
+                  key={m.id}
+                  match={m}
+                  pred={preds[m.id]}
+                  locked={locked}
+                  onSave={(p) => setPreds(s => ({ ...s, [m.id]: p }))}
+                />
+              ))}
+            </div>
+          )}
         </section>
       ))}
     </div>
@@ -158,8 +179,8 @@ function MatchCard({ match, pred, locked, onSave }: {
 
   const pointsBadge = pred && hasResult ? (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-      pred.points === 2 ? "bg-accent text-accent-foreground"
-      : pred.points === 1 ? "bg-primary/30 text-primary"
+      pred.points === 3 ? "bg-green-500 text-white"
+      : pred.points === 1 ? "bg-accent text-accent-foreground"
       : "bg-destructive/20 text-destructive"
     }`}>+{pred.points}p</span>
   ) : null;

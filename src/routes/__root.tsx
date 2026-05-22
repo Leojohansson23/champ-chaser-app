@@ -10,7 +10,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, ListChecks, BarChart3, Shield, LogOut } from "lucide-react";
+import { Trophy, ListChecks, BarChart3, Shield, LogOut, Table2, Target } from "lucide-react";
 
 import appCss from "../styles.css?url";
 
@@ -145,8 +145,14 @@ function BottomNav() {
         <Link to="/" className={item} activeOptions={{ exact: true }} activeProps={active}>
           <ListChecks className="size-5" /> Matcher
         </Link>
+        <Link to="/sidebets" className={item} activeProps={active}>
+          <Target className="size-5" /> Sidospel
+        </Link>
         <Link to="/leaderboard" className={item} activeProps={active}>
           <BarChart3 className="size-5" /> Topplista
+        </Link>
+        <Link to="/groups" className={item} activeProps={active}>
+          <Table2 className="size-5" /> Grupper
         </Link>
         {isAdmin && (
           <Link to="/admin" className={item} activeProps={active}>

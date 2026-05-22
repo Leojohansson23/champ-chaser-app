@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -19,14 +19,29 @@ type Match = {
   away_score: number | null;
 };
 
+type SideBet = {
+  id: string;
+  question: string;
+  options: string[];
+  points: number;
+  deadline: string;
+  correct_answer: string | null;
+};
+
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
+  const [sideBets, setSideBets] = useState<SideBet[]>([]);
   const [draft, setDraft] = useState({
     group_name: "A", home_team: "", away_team: "", kickoff: "",
   });
+  const [sideBetDraft, setSideBetDraft] = useState({
+    question: "", points: "3", deadline: "",
+  });
   const [promoting, setPromoting] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const db = supabase as any;
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -37,7 +52,26 @@ function AdminPage() {
     setMatches((data ?? []) as Match[]);
   };
 
-  useEffect(() => { if (user && isAdmin) load(); }, [user, isAdmin]);
+  const loadSideBets = async () => {
+    const { data } = await db.from("side_bets").select("*").order("deadline");
+    setSideBets((data ?? []) as SideBet[]);
+  };
+
+  useEffect(() => { if (user && isAdmin) { load(); loadSideBets(); } }, [user, isAdmin]);
+
+  const grouped = useMemo(() => {
+    const groups: Record<string, Match[]> = {};
+    matches.forEach(match => { (groups[match.group_name] ??= []).push(match); });
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [matches]);
+
+  useEffect(() => {
+    if (grouped.length === 0) return;
+    setOpenGroups(current => {
+      if (Object.keys(current).length > 0) return current;
+      return { [grouped[0][0]]: true };
+    });
+  }, [grouped]);
 
   if (!user || loading) return null;
 
@@ -86,6 +120,29 @@ function AdminPage() {
     }
   };
 
+  const addSideBet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const points = parseInt(sideBetDraft.points);
+    if (!sideBetDraft.question || !sideBetDraft.deadline || isNaN(points) || points < 1) {
+      toast.error("Fyll i fråga, deadline och poäng");
+      return;
+    }
+
+    const { error } = await db.from("side_bets").insert({
+      question: sideBetDraft.question,
+      options: [],
+      points,
+      deadline: new Date(sideBetDraft.deadline).toISOString(),
+    });
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Sidospel tillagt");
+      setSideBetDraft({ question: "", points: "3", deadline: "" });
+      loadSideBets();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -107,7 +164,46 @@ function AdminPage() {
 
       <div className="space-y-2">
         <h2 className="font-display text-xl text-accent">Matcher ({matches.length})</h2>
-        {matches.map(m => <AdminMatchRow key={m.id} match={m} onChange={load} />)}
+        {grouped.map(([group, groupMatches]) => (
+          <section key={group} className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setOpenGroups(current => ({ ...current, [group]: !current[group] }))}
+              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left transition hover:bg-card"
+            >
+              <span className="font-display text-lg text-accent">Grupp {group}</span>
+              <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {groupMatches.length} matcher
+                <ChevronDown className={`size-4 transition-transform ${openGroups[group] ? "rotate-180" : ""}`} />
+              </span>
+            </button>
+            {openGroups[group] && (
+              <div className="space-y-2">
+                {groupMatches.map(m => <AdminMatchRow key={m.id} match={m} onChange={load} />)}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="font-display text-xl text-accent">Sidospel ({sideBets.length})</h2>
+        <form onSubmit={addSideBet} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
+          <Input label="Fråga" value={sideBetDraft.question} onChange={v => setSideBetDraft(d => ({ ...d, question: v }))} />
+          <div className="grid grid-cols-2 gap-2">
+            <Input label="Poäng" type="number" value={sideBetDraft.points} onChange={v => setSideBetDraft(d => ({ ...d, points: v }))} />
+            <Input label="Deadline" type="datetime-local" value={sideBetDraft.deadline} onChange={v => setSideBetDraft(d => ({ ...d, deadline: v }))} />
+          </div>
+          <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">
+            <Plus className="size-4" /> Lägg till sidospel
+          </button>
+        </form>
+
+        <div className="space-y-2">
+          {sideBets.map(sideBet => (
+            <AdminSideBetRow key={sideBet.id} sideBet={sideBet} onChange={loadSideBets} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -122,7 +218,10 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
     const as = a === "" ? null : parseInt(a);
     const { error } = await supabase.from("matches").update({ home_score: hs, away_score: as }).eq("id", match.id);
     if (error) toast.error(error.message);
-    else toast.success("Resultat sparat");
+    else {
+      toast.success("Resultat sparat");
+      onChange();
+    }
   };
 
   const del = async () => {
@@ -151,6 +250,66 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
       <button onClick={save} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
         <Save className="size-3.5" /> Spara resultat
       </button>
+    </div>
+  );
+}
+
+function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: () => void }) {
+  const [correct, setCorrect] = useState(sideBet.correct_answer ?? "");
+  const db = supabase as any;
+
+  useEffect(() => {
+    setCorrect(sideBet.correct_answer ?? "");
+  }, [sideBet.correct_answer]);
+
+  const saveCorrect = async () => {
+    const { error } = await db
+      .from("side_bets")
+      .update({ correct_answer: correct || null })
+      .eq("id", sideBet.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Rätt svar sparat");
+      onChange();
+    }
+  };
+
+  const del = async () => {
+    if (!confirm("Ta bort sidospel?")) return;
+    const { error } = await db.from("side_bets").delete().eq("id", sideBet.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Sidospel borttaget");
+      onChange();
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold">{sideBet.question}</div>
+          <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+            {sideBet.points}p · Stänger {new Date(sideBet.deadline).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
+          </div>
+        </div>
+        <button onClick={del} className="text-destructive"><Trash2 className="size-4" /></button>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rätt svar</span>
+          <input
+            value={correct}
+            onChange={e => setCorrect(e.target.value)}
+            placeholder="Skriv rätt svar"
+            className="w-full rounded-lg border border-border bg-input px-3 py-2 outline-none focus:border-accent"
+          />
+        </label>
+        <button onClick={saveCorrect} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
+          <Save className="size-3.5" /> Spara rätt svar
+        </button>
+      </div>
     </div>
   );
 }
