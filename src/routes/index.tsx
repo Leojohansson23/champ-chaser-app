@@ -1,12 +1,17 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Lock, Clock, Check, ChevronDown } from "lucide-react";
+import { CalendarDays, MessageCircle, Send, Trash2, Trophy } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  component: MatchesPage,
+  component: () => (
+    <RequireCompletedEntry>
+      <HomePage />
+    </RequireCompletedEntry>
+  ),
 });
 
 type Match = {
@@ -19,223 +24,273 @@ type Match = {
   away_score: number | null;
 };
 
-type Prediction = {
-  match_id: string;
-  predicted_home: number;
-  predicted_away: number;
-  points: number;
+type LeaderboardRow = {
+  user_id: string;
+  username: string;
+  total_points: number;
 };
 
-function MatchesPage() {
-  const { user, loading } = useAuth();
+type CommentRow = {
+  id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+  profiles: { username: string } | null;
+};
+
+function HomePage() {
+  const { user, isAdmin, loading } = useAuth();
+  const completion = useEntryCompletion();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
-  const [preds, setPreds] = useState<Record<string, Prediction>>({});
-  const [lockTime, setLockTime] = useState<Date | null>(null);
-  const [now, setNow] = useState(new Date());
-  const [fetched, setFetched] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [comments, setComments] = useState<CommentRow[]>([]);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const db = supabase as any;
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
-  }, [loading, user, navigate]);
+  }, [loading, navigate, user]);
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  const loadHome = async () => {
+    if (!user) return;
+    const [{ data: matchRows }, { data: leaderboardRows }, { data: commentRows }] = await Promise.all([
+      supabase.from("matches").select("*").order("kickoff"),
+      supabase.from("leaderboard").select("*").order("total_points", { ascending: false }).limit(10),
+      db
+        .from("comments")
+        .select("id, user_id, body, created_at, profiles(username)")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+
+    setMatches((matchRows ?? []) as Match[]);
+    setLeaderboard(((leaderboardRows ?? []) as LeaderboardRow[]).slice(0, 10));
+    setComments((commentRows ?? []) as CommentRow[]);
+  };
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
-      const [{ data: m }, { data: p }] = await Promise.all([
-        supabase.from("matches").select("*").order("kickoff"),
-        supabase.from("predictions").select("match_id, predicted_home, predicted_away, points").eq("user_id", user.id),
-      ]);
-      const ms = (m ?? []) as Match[];
-      setMatches(ms);
-      setLockTime(ms.length ? new Date(ms[0].kickoff) : null);
-      const map: Record<string, Prediction> = {};
-      (p ?? []).forEach((x: any) => { map[x.match_id] = x; });
-      setPreds(map);
-      setFetched(true);
-    })();
+    loadHome();
+    const interval = window.setInterval(loadHome, 5000);
+    window.addEventListener("focus", loadHome);
+    const ch = supabase
+      .channel(`home-${user.id}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, loadHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, loadHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, loadHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, loadHome)
+      .subscribe();
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", loadHome);
+      supabase.removeChannel(ch);
+    };
   }, [user]);
 
-  const locked = !!(lockTime && now >= lockTime);
-  const grouped = useMemo(() => {
-    const g: Record<string, Match[]> = {};
-    matches.forEach(m => { (g[m.group_name] ??= []).push(m); });
-    return Object.entries(g).sort(([a],[b]) => a.localeCompare(b));
-  }, [matches]);
-
-  useEffect(() => {
-    if (grouped.length === 0) return;
-    setOpenGroups(current => {
-      if (Object.keys(current).length > 0) return current;
-      return { [grouped[0][0]]: true };
+  const todayMatches = useMemo(() => {
+    const now = new Date();
+    return matches.filter(match => {
+      const kickoff = new Date(match.kickoff);
+      return (
+        kickoff.getFullYear() === now.getFullYear() &&
+        kickoff.getMonth() === now.getMonth() &&
+        kickoff.getDate() === now.getDate()
+      );
     });
-  }, [grouped]);
+  }, [matches]);
 
   if (loading || !user) return null;
 
+  const sendComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = comment.trim();
+    if (!body) return;
+    if (body.length > 300) {
+      toast.error("Kommentaren får max vara 300 tecken");
+      return;
+    }
+
+    setSending(true);
+    const { error } = await db.from("comments").insert({ user_id: user.id, body });
+    setSending(false);
+
+    if (error) toast.error(error.message);
+    else {
+      setComment("");
+      loadHome();
+    }
+  };
+
+  const deleteComment = async (id: string) => {
+    const { error } = await db.from("comments").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else loadHome();
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          {locked ? <Lock className="size-3.5" /> : <Clock className="size-3.5 text-accent" />}
-          {locked ? "Tipsen är låsta" : "Tipsa innan turneringen startar"}
-        </div>
-        <h1 className="mt-1 font-display text-3xl">Gruppspelet</h1>
-        {lockTime && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {locked ? "Avspark har gått — lycka till!" : <>Lås: <Countdown to={lockTime} now={now} /></>}
-          </p>
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">Hem</p>
+        <h1 className="mt-1 font-display text-3xl">VM-tipset</h1>
+        {!completion.loading && !completion.isComplete && (
+          <div className="mt-4 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
+            <div className="font-semibold text-accent">Fyll i alla tips först</div>
+            <p className="mt-1 text-muted-foreground">
+              {completion.missingMatches > 0
+                ? `${completion.missingMatches} matchtips kvar innan allt låses upp.`
+                : `${completion.missingSideBets} sidospel kvar innan allt låses upp.`}
+            </p>
+            <Link
+              to={completion.nextRequiredPath}
+              className="mt-3 inline-flex rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Fortsätt tippa
+            </Link>
+          </div>
         )}
       </section>
 
-      {fetched && matches.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Inga matcher upplagda än.
-        </div>
-      )}
-
-      {grouped.map(([group, ms]) => (
-        <section key={group} className="space-y-3">
-          <button
-            type="button"
-            onClick={() => setOpenGroups(current => ({ ...current, [group]: !current[group] }))}
-            className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left transition hover:bg-card"
-          >
-            <span className="font-display text-xl text-accent">Grupp {group}</span>
-            <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {ms.length} matcher
-              <ChevronDown className={`size-4 transition-transform ${openGroups[group] ? "rotate-180" : ""}`} />
-            </span>
-          </button>
-          {openGroups[group] && (
-            <div className="space-y-2.5">
-              {ms.map(m => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  pred={preds[m.id]}
-                  locked={locked}
-                  onSave={(p) => setPreds(s => ({ ...s, [m.id]: p }))}
-                />
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1.45fr)_minmax(220px,0.8fr)] md:items-start">
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-display text-xl text-accent">
+              <CalendarDays className="size-5" /> Dagens matcher
+            </h2>
+            <Link to="/matches" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+              Alla matcher
+            </Link>
+          </div>
+          {todayMatches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Inga matcher spelas idag.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todayMatches.map(match => (
+                <TodayMatchCard key={match.id} match={match} />
               ))}
             </div>
           )}
         </section>
-      ))}
+
+        {(completion.isComplete || isAdmin) && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-display text-lg text-accent">
+                <Trophy className="size-4" /> Topp 10
+              </h2>
+              <Link to="/leaderboard" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+                Hela listan
+              </Link>
+            </div>
+            {leaderboard.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+                Ingen topplista än.
+              </div>
+            ) : (
+              <ol className="space-y-1.5">
+                {leaderboard.map((row, index) => (
+                  <li key={row.user_id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-2">
+                    <div className="flex size-7 items-center justify-center rounded-full bg-secondary font-display text-xs text-accent">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1 truncate text-sm font-semibold">{row.username}</div>
+                    <div className="font-display text-lg leading-none text-accent">{row.total_points}</div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+      </div>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-display text-xl text-accent">
+            <MessageCircle className="size-5" /> Kommentarer
+          </h2>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Senaste 20</span>
+        </div>
+        <form onSubmit={sendComment} className="rounded-xl border border-border/60 bg-card/60 p-2.5">
+          <div className="flex gap-2">
+            <input
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              maxLength={300}
+              placeholder="Skriv något..."
+              className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <button
+              disabled={sending || !comment.trim()}
+              className="flex h-10 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
+            >
+              <Send className="size-4" />
+            </button>
+          </div>
+        </form>
+
+        <div className="comment-scroll max-h-[360px] space-y-1.5 overflow-y-auto rounded-2xl border border-border/60 bg-card/35 p-2 pr-1.5">
+          {comments.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              Inga kommentarer än.
+            </div>
+          ) : (
+            comments.map(row => (
+              <article key={row.id} className="rounded-lg bg-background/45 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate text-sm">
+                    <span className="font-semibold">{row.profiles?.username ?? "Okänd"}</span>
+                    <span className="ml-2 text-[11px] text-muted-foreground">{formatTime(row.created_at)}</span>
+                  </div>
+                  {(row.user_id === user.id || isAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => deleteComment(row.id)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">{row.body}</p>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function Countdown({ to, now }: { to: Date; now: Date }) {
-  const ms = Math.max(0, to.getTime() - now.getTime());
-  const d = Math.floor(ms / 86400000);
-  const h = Math.floor((ms / 3600000) % 24);
-  const m = Math.floor((ms / 60000) % 60);
-  return <span className="font-mono text-foreground">{d}d {h}h {m}m</span>;
-}
-
-function MatchCard({ match, pred, locked, onSave }: {
-  match: Match; pred?: Prediction; locked: boolean;
-  onSave: (p: Prediction) => void;
-}) {
-  const { user } = useAuth();
-  const [home, setHome] = useState<string>(pred ? String(pred.predicted_home) : "");
-  const [away, setAway] = useState<string>(pred ? String(pred.predicted_away) : "");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (pred) { setHome(String(pred.predicted_home)); setAway(String(pred.predicted_away)); }
-  }, [pred]);
-
-  const hasResult = match.home_score !== null && match.away_score !== null;
+function TodayMatchCard({ match }: { match: Match }) {
   const kickoff = new Date(match.kickoff);
-  const dateStr = kickoff.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
-  const timeStr = kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-
-  const save = async () => {
-    if (!user) return;
-    const h = parseInt(home), a = parseInt(away);
-    if (isNaN(h) || isNaN(a) || h < 0 || a < 0 || h > 20 || a > 20) {
-      toast.error("Ange giltigt resultat");
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase.from("predictions").upsert({
-      user_id: user.id, match_id: match.id, predicted_home: h, predicted_away: a,
-    }, { onConflict: "user_id,match_id" });
-    setSaving(false);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Tips sparat");
-      onSave({ match_id: match.id, predicted_home: h, predicted_away: a, points: pred?.points ?? 0 });
-    }
-  };
-
-  const pointsBadge = pred && hasResult ? (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-      pred.points === 3 ? "bg-green-500 text-white"
-      : pred.points === 1 ? "bg-accent text-accent-foreground"
-      : "bg-destructive/20 text-destructive"
-    }`}>+{pred.points}p</span>
-  ) : null;
+  const hasResult = match.home_score !== null && match.away_score !== null;
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur">
+    <div className="rounded-xl border border-border/60 bg-card/60 p-3">
       <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
-        <span>{dateStr} · {timeStr}</span>
-        <div className="flex items-center gap-1.5">
-          {locked && <Lock className="size-3" />}
-          {pointsBadge}
-        </div>
+        <span>Grupp {match.group_name}</span>
+        <span>{kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
-
-      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="text-right font-semibold">{match.home_team}</div>
-        <div className="flex items-center gap-1">
-          <ScoreInput value={home} onChange={setHome} disabled={locked} />
-          <span className="text-muted-foreground">–</span>
-          <ScoreInput value={away} onChange={setAway} disabled={locked} />
+      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="truncate text-right font-semibold">{match.home_team}</div>
+        <div className="font-display text-xl text-accent">
+          {hasResult ? `${match.home_score}-${match.away_score}` : "vs"}
         </div>
-        <div className="font-semibold">{match.away_team}</div>
+        <div className="truncate font-semibold">{match.away_team}</div>
       </div>
-
-      {hasResult && (
-        <div className="mt-2 text-center text-xs text-muted-foreground">
-          Slutresultat: <span className="font-bold text-foreground">{match.home_score}–{match.away_score}</span>
-        </div>
-      )}
-
-      {!locked && (
-        <button
-          onClick={save}
-          disabled={saving}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2 text-sm font-semibold text-primary-foreground transition active:scale-[0.98] disabled:opacity-50"
-        >
-          {pred ? <><Check className="size-4" /> Uppdatera tips</> : "Spara tips"}
-        </button>
-      )}
     </div>
   );
 }
 
-function ScoreInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled: boolean }) {
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      max={20}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      disabled={disabled}
-      className="h-11 w-12 rounded-lg border border-border bg-input text-center text-lg font-bold tabular-nums text-foreground outline-none focus:border-accent disabled:opacity-60"
-      placeholder="–"
-    />
-  );
+function formatTime(value: string) {
+  return new Date(value).toLocaleString("sv-SE", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

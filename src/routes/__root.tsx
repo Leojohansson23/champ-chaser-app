@@ -9,8 +9,9 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, ListChecks, BarChart3, Shield, LogOut, Table2, Target } from "lucide-react";
+import { Trophy, ListChecks, BarChart3, Shield, LogOut, Table2, Target, Home } from "lucide-react";
 
 import appCss from "../styles.css?url";
 
@@ -136,24 +137,45 @@ function Header() {
 
 function BottomNav() {
   const { user, isAdmin } = useAuth();
+  const completion = useEntryCompletion();
   if (!user) return null;
   const item = "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] font-medium text-muted-foreground transition-colors";
   const active = { className: "text-accent" };
+  const canSeeLiveTabs = isAdmin || completion.isComplete;
+  if (!canSeeLiveTabs) {
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-2xl">
+          <Link to="/entry" className={item} activeProps={active}>
+            <ListChecks className="size-5" /> Tippa
+          </Link>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60 bg-background/90 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-2xl">
         <Link to="/" className={item} activeOptions={{ exact: true }} activeProps={active}>
+          <Home className="size-5" /> Hem
+        </Link>
+        <Link to="/matches" className={item} activeProps={active}>
           <ListChecks className="size-5" /> Matcher
         </Link>
         <Link to="/sidebets" className={item} activeProps={active}>
           <Target className="size-5" /> Sidospel
         </Link>
-        <Link to="/leaderboard" className={item} activeProps={active}>
-          <BarChart3 className="size-5" /> Topplista
-        </Link>
-        <Link to="/groups" className={item} activeProps={active}>
-          <Table2 className="size-5" /> Grupper
-        </Link>
+        {canSeeLiveTabs && (
+          <>
+            <Link to="/leaderboard" className={item} activeProps={active}>
+              <BarChart3 className="size-5" /> Topplista
+            </Link>
+            <Link to="/groups" className={item} activeProps={active}>
+              <Table2 className="size-5" /> Grupper
+            </Link>
+          </>
+        )}
         {isAdmin && (
           <Link to="/admin" className={item} activeProps={active}>
             <Shield className="size-5" /> Admin

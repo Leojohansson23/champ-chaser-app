@@ -2,11 +2,16 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { toast } from "sonner";
 import { Check, Lock, Save } from "lucide-react";
 
 export const Route = createFileRoute("/sidebets")({
-  component: SideBetsPage,
+  component: () => (
+    <RequireCompletedEntry>
+      <SideBetsPage />
+    </RequireCompletedEntry>
+  ),
 });
 
 type SideBet = {
@@ -24,8 +29,9 @@ type SideBetAnswer = {
   points: number;
 };
 
-function SideBetsPage() {
+export function SideBetsPage() {
   const { user, loading } = useAuth();
+  const completion = useEntryCompletion();
   const navigate = useNavigate();
   const [bets, setBets] = useState<SideBet[]>([]);
   const [answers, setAnswers] = useState<Record<string, SideBetAnswer>>({});
@@ -97,6 +103,17 @@ function SideBetsPage() {
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Bonus</p>
         <h1 className="font-display text-3xl">Sidospel</h1>
       </div>
+
+      {!completion.loading && !completion.isComplete && (
+        <section className="rounded-2xl border border-accent/30 bg-accent/10 p-4 text-sm">
+          <div className="font-semibold text-accent">Fyll i alla tips först</div>
+          <p className="mt-1 text-muted-foreground">
+            {completion.missingMatches > 0
+              ? `${completion.missingMatches} matchtips kvar.`
+              : `${completion.missingSideBets} sidospel kvar innan topplista och grupper låses upp.`}
+          </p>
+        </section>
+      )}
 
       {bets.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

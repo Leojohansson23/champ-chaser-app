@@ -10,8 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SidebetsRouteImport } from './routes/sidebets'
+import { Route as MatchesRouteImport } from './routes/matches'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GroupsRouteImport } from './routes/groups'
+import { Route as EntryRouteImport } from './routes/entry'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +21,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SidebetsRoute = SidebetsRouteImport.update({
   id: '/sidebets',
   path: '/sidebets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MatchesRoute = MatchesRouteImport.update({
+  id: '/matches',
+  path: '/matches',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
@@ -29,6 +36,11 @@ const LeaderboardRoute = LeaderboardRouteImport.update({
 const GroupsRoute = GroupsRouteImport.update({
   id: '/groups',
   path: '/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EntryRoute = EntryRouteImport.update({
+  id: '/entry',
+  path: '/entry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -51,16 +63,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
+  '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/matches': typeof MatchesRoute
   '/sidebets': typeof SidebetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
+  '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/matches': typeof MatchesRoute
   '/sidebets': typeof SidebetsRoute
 }
 export interface FileRoutesById {
@@ -68,22 +84,42 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/auth': typeof AuthRoute
+  '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/matches': typeof MatchesRoute
   '/sidebets': typeof SidebetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/auth' | '/groups' | '/leaderboard' | '/sidebets'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/entry'
+    | '/groups'
+    | '/leaderboard'
+    | '/matches'
+    | '/sidebets'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/auth' | '/groups' | '/leaderboard' | '/sidebets'
+  to:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/entry'
+    | '/groups'
+    | '/leaderboard'
+    | '/matches'
+    | '/sidebets'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/auth'
+    | '/entry'
     | '/groups'
     | '/leaderboard'
+    | '/matches'
     | '/sidebets'
   fileRoutesById: FileRoutesById
 }
@@ -91,8 +127,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AuthRoute: typeof AuthRoute
+  EntryRoute: typeof EntryRoute
   GroupsRoute: typeof GroupsRoute
   LeaderboardRoute: typeof LeaderboardRoute
+  MatchesRoute: typeof MatchesRoute
   SidebetsRoute: typeof SidebetsRoute
 }
 
@@ -103,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/sidebets'
       fullPath: '/sidebets'
       preLoaderRoute: typeof SidebetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matches': {
+      id: '/matches'
+      path: '/matches'
+      fullPath: '/matches'
+      preLoaderRoute: typeof MatchesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leaderboard': {
@@ -117,6 +162,13 @@ declare module '@tanstack/react-router' {
       path: '/groups'
       fullPath: '/groups'
       preLoaderRoute: typeof GroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/entry': {
+      id: '/entry'
+      path: '/entry'
+      fullPath: '/entry'
+      preLoaderRoute: typeof EntryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -147,8 +199,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AuthRoute: AuthRoute,
+  EntryRoute: EntryRoute,
   GroupsRoute: GroupsRoute,
   LeaderboardRoute: LeaderboardRoute,
+  MatchesRoute: MatchesRoute,
   SidebetsRoute: SidebetsRoute,
 }
 export const routeTree = rootRouteImport

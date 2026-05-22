@@ -33,13 +33,13 @@ function AdminPage() {
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [sideBets, setSideBets] = useState<SideBet[]>([]);
+  const [prizePot, setPrizePot] = useState("0");
   const [draft, setDraft] = useState({
     group_name: "A", home_team: "", away_team: "", kickoff: "",
   });
   const [sideBetDraft, setSideBetDraft] = useState({
     question: "", points: "3", deadline: "",
   });
-  const [promoting, setPromoting] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const db = supabase as any;
 
@@ -57,7 +57,12 @@ function AdminPage() {
     setSideBets((data ?? []) as SideBet[]);
   };
 
-  useEffect(() => { if (user && isAdmin) { load(); loadSideBets(); } }, [user, isAdmin]);
+  const loadPrizePot = async () => {
+    const { data } = await db.from("app_settings").select("value").eq("key", "prize_pot").maybeSingle();
+    setPrizePot(String(Number(data?.value?.amount ?? 0)));
+  };
+
+  useEffect(() => { if (user && isAdmin) { load(); loadSideBets(); loadPrizePot(); } }, [user, isAdmin]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, Match[]> = {};
@@ -81,23 +86,8 @@ function AdminPage() {
         <div className="rounded-2xl border border-border/60 bg-card/60 p-5">
           <h1 className="font-display text-2xl">Admin</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Du har ingen admin-roll. Den första användaren kan göra sig själv till admin här:
+            Du har ingen admin-roll. Be en befintlig admin om åtkomst.
           </p>
-          <button
-            disabled={promoting}
-            onClick={async () => {
-              setPromoting(true);
-              const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "admin");
-              if ((count ?? 0) > 0) { toast.error("Det finns redan en admin. Be den befintliga admin om åtkomst."); setPromoting(false); return; }
-              const { error } = await supabase.from("user_roles").insert({ user_id: user.id, role: "admin" });
-              setPromoting(false);
-              if (error) toast.error(error.message);
-              else { toast.success("Du är nu admin – ladda om sidan."); setTimeout(() => location.reload(), 800); }
-            }}
-            className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
-          >
-            Bli första admin
-          </button>
         </div>
       </div>
     );
@@ -143,12 +133,47 @@ function AdminPage() {
     }
   };
 
+  const savePrizePot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Math.max(0, Math.round(Number(prizePot)));
+    if (!Number.isFinite(amount)) {
+      toast.error("Ange en giltig summa");
+      return;
+    }
+
+    const { error } = await db.from("app_settings").upsert({
+      key: "prize_pot",
+      value: { amount },
+    });
+
+    if (error) toast.error(error.message);
+    else {
+      setPrizePot(String(amount));
+      toast.success("Prispotten uppdaterad");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Admin</p>
         <h1 className="font-display text-3xl">Hantera matcher</h1>
       </div>
+
+      <form onSubmit={savePrizePot} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
+        <div className="flex items-end gap-3">
+          <Input
+            label="Prispott"
+            type="number"
+            value={prizePot}
+            onChange={setPrizePot}
+            className="flex-1"
+          />
+          <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-secondary px-4 text-sm font-semibold">
+            <Save className="size-3.5" /> Spara
+          </button>
+        </div>
+      </form>
 
       <form onSubmit={addMatch} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
         <div className="grid grid-cols-3 gap-2">

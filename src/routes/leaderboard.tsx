@@ -2,10 +2,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Trophy, Medal, Award } from "lucide-react";
+import { RequireCompletedEntry } from "@/lib/entry-completion";
+import { Trophy, Medal, Award, Coins } from "lucide-react";
 
 export const Route = createFileRoute("/leaderboard")({
-  component: LeaderboardPage,
+  component: () => (
+    <RequireCompletedEntry>
+      <LeaderboardPage />
+    </RequireCompletedEntry>
+  ),
 });
 
 type Row = {
@@ -35,19 +40,22 @@ function LeaderboardPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
+  const [prizePot, setPrizePot] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
   }, [loading, user, navigate]);
 
   const load = async () => {
-    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }] = await Promise.all([
+    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }, { data: prizePotSetting }] = await Promise.all([
       supabase.from("leaderboard").select("*"),
       supabase
         .from("predictions")
         .select("user_id, predicted_home, predicted_away, matches(home_score, away_score)"),
       (supabase as any).from("side_bet_answers").select("user_id, points"),
+      (supabase as any).from("app_settings").select("value").eq("key", "prize_pot").maybeSingle(),
     ]);
+    setPrizePot(Number(prizePotSetting?.value?.amount ?? 0));
     const stats = buildPredictionStats((predictions ?? []) as unknown as PredictionWithMatch[]);
     const sideBetStats = buildSideBetStats((sideBetAnswers ?? []) as SideBetAnswer[]);
     const sorted = ((leaderboard ?? []) as Row[]).map(row => ({
@@ -73,6 +81,7 @@ function LeaderboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings", filter: "key=eq.prize_pot" }, load)
       .subscribe();
     return () => {
       window.clearInterval(interval);
@@ -85,9 +94,19 @@ function LeaderboardPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Live</p>
-        <h1 className="font-display text-3xl">Topplista</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Live</p>
+          <h1 className="font-display text-3xl">Topplista</h1>
+        </div>
+        <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-right">
+          <div className="flex items-center justify-end gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <Coins className="size-3.5 text-accent" /> Prispott
+          </div>
+          <div className="font-display text-2xl leading-none text-accent">
+            {formatPrizePot(prizePot)}
+          </div>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -125,6 +144,14 @@ function LeaderboardPage() {
       )}
     </div>
   );
+}
+
+function formatPrizePot(amount: number) {
+  return new Intl.NumberFormat("sv-SE", {
+    style: "currency",
+    currency: "SEK",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function buildPredictionStats(predictions: PredictionWithMatch[]) {
