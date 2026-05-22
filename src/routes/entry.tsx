@@ -14,6 +14,10 @@ function EntryPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
   const completion = useEntryCompletion();
   const navigate = useNavigate();
+  const displayName =
+    user?.user_metadata?.username ??
+    user?.user_metadata?.name ??
+    (user?.email ? user.email.split("@")[0] : "");
 
   useEffect(() => {
     if (!authLoading && !user) navigate({ to: "/auth" });
@@ -32,7 +36,8 @@ function EntryPage() {
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
           <CheckCircle2 className="size-4 text-accent" /> Tippa klart
         </div>
-        <h1 className="mt-1 font-display text-3xl">Lägg alla spel</h1>
+        <h1 className="mt-1 font-display text-3xl">Hej{displayName ? `, ${displayName}` : ""}</h1>
+        <p className="mt-1 text-sm font-semibold text-foreground">Lägg alla spel</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Du låser upp hela appen när alla matchtips och sidospel är ifyllda.
         </p>

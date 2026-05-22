@@ -48,6 +48,10 @@ function HomePage() {
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const db = supabase as any;
+  const displayName =
+    user?.user_metadata?.username ??
+    user?.user_metadata?.name ??
+    (user?.email ? user.email.split("@")[0] : "");
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -134,7 +138,8 @@ function HomePage() {
     <div className="space-y-5">
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Hem</p>
-        <h1 className="mt-1 font-display text-3xl">VM-tipset</h1>
+        <h1 className="mt-1 font-display text-3xl">Hej{displayName ? `, ${displayName}` : ""}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Välkommen till VM-tipset.</p>
         {!completion.loading && !completion.isComplete && (
           <div className="mt-4 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
             <div className="font-semibold text-accent">Fyll i alla tips först</div>
