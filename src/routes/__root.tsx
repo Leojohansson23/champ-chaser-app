@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, ListChecks, BarChart3, Shield, LogOut, Table2, Target, Home } from "lucide-react";
+import { Trophy, ListChecks, BarChart3, Shield, LogOut, Table2, Target, Home, BookOpenText } from "lucide-react";
 
 import appCss from "../styles.css?url";
 
@@ -149,6 +149,9 @@ function BottomNav() {
           <Link to="/entry" className={item} activeProps={active}>
             <ListChecks className="size-5" /> Tippa
           </Link>
+          <Link to="/rules" className={item} activeProps={active}>
+            <BookOpenText className="size-5" /> Regler
+          </Link>
         </div>
       </nav>
     );
@@ -165,6 +168,9 @@ function BottomNav() {
         </Link>
         <Link to="/sidebets" className={item} activeProps={active}>
           <Target className="size-5" /> Sidospel
+        </Link>
+        <Link to="/rules" className={item} activeProps={active}>
+          <BookOpenText className="size-5" /> Regler
         </Link>
         {canSeeLiveTabs && (
           <>

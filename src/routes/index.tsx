@@ -153,6 +153,27 @@ function HomePage() {
         )}
       </section>
 
+      <section className="rounded-2xl border border-border/60 bg-card/45 p-4 backdrop-blur">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Regler</p>
+            <h2 className="mt-1 font-display text-xl text-accent">Kort version</h2>
+          </div>
+          <Link
+            to="/rules"
+            className="shrink-0 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
+          >
+            Läs alla regler
+          </Link>
+        </div>
+        <ul className="mt-3 space-y-1.5 text-sm text-foreground/90">
+          <li>Exakt resultat ger 2 poäng, rätt tecken ger 1 poäng.</li>
+          <li>Alla matchtips måste vara klara innan första avspark.</li>
+          <li>Sidospel har egna deadlines och kan låsa separat.</li>
+          <li>Topplistan visas när du fyllt i allt, eller direkt för admin.</li>
+        </ul>
+      </section>
+
       <div className="grid gap-5 md:grid-cols-[minmax(0,1.45fr)_minmax(220px,0.8fr)] md:items-start">
         <section className="space-y-3">
           <div className="flex items-center justify-between">
