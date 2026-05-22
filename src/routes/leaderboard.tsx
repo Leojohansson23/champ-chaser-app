@@ -41,21 +41,28 @@ function LeaderboardPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [prizePot, setPrizePot] = useState(0);
+  const [entryFee, setEntryFee] = useState(0);
+  const [paidCount, setPaidCount] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
   }, [loading, user, navigate]);
 
   const load = async () => {
-    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }, { data: prizePotSetting }] = await Promise.all([
+    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }, { data: entryFeeSetting }, { data: profiles }] = await Promise.all([
       supabase.from("leaderboard").select("*"),
       supabase
         .from("predictions")
         .select("user_id, predicted_home, predicted_away, matches(home_score, away_score)"),
       (supabase as any).from("side_bet_answers").select("user_id, points"),
-      (supabase as any).from("app_settings").select("value").eq("key", "prize_pot").maybeSingle(),
+      (supabase as any).from("app_settings").select("value").eq("key", "entry_fee").maybeSingle(),
+      (supabase as any).from("profiles").select("id, is_paid"),
     ]);
-    setPrizePot(Number(prizePotSetting?.value?.amount ?? 0));
+    const fee = Number(entryFeeSetting?.value?.amount ?? 100);
+    const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter((profile) => profile.is_paid).length;
+    setEntryFee(fee);
+    setPaidCount(paid);
+    setPrizePot(fee * paid);
     const stats = buildPredictionStats((predictions ?? []) as unknown as PredictionWithMatch[]);
     const sideBetStats = buildSideBetStats((sideBetAnswers ?? []) as SideBetAnswer[]);
     const sorted = ((leaderboard ?? []) as Row[]).map(row => ({
@@ -81,7 +88,8 @@ function LeaderboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings", filter: "key=eq.prize_pot" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings", filter: "key=eq.entry_fee" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
       .subscribe();
     return () => {
       window.clearInterval(interval);
@@ -105,6 +113,9 @@ function LeaderboardPage() {
           </div>
           <div className="font-display text-2xl leading-none text-accent">
             {formatPrizePot(prizePot)}
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            {paidCount} betalda x {formatPrizePot(entryFee)}
           </div>
         </div>
       </div>

@@ -28,12 +28,19 @@ type SideBet = {
   correct_answer: string | null;
 };
 
+type Participant = {
+  id: string;
+  username: string;
+  is_paid: boolean;
+};
+
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [sideBets, setSideBets] = useState<SideBet[]>([]);
-  const [prizePot, setPrizePot] = useState("0");
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [entryFee, setEntryFee] = useState("100");
   const [draft, setDraft] = useState({
     group_name: "A", home_team: "", away_team: "", kickoff: "",
   });
@@ -57,12 +64,32 @@ function AdminPage() {
     setSideBets((data ?? []) as SideBet[]);
   };
 
-  const loadPrizePot = async () => {
-    const { data } = await db.from("app_settings").select("value").eq("key", "prize_pot").maybeSingle();
-    setPrizePot(String(Number(data?.value?.amount ?? 0)));
+  const loadParticipants = async () => {
+    const { data, error } = await db.from("profiles").select("id, username, is_paid").order("username");
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setParticipants((data ?? []) as Participant[]);
   };
 
-  useEffect(() => { if (user && isAdmin) { load(); loadSideBets(); loadPrizePot(); } }, [user, isAdmin]);
+  const loadEntryFee = async () => {
+    const { data, error } = await db.from("app_settings").select("value").eq("key", "entry_fee").maybeSingle();
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setEntryFee(String(Number(data?.value?.amount ?? 100)));
+  };
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      load();
+      loadSideBets();
+      loadParticipants();
+      loadEntryFee();
+    }
+  }, [user, isAdmin]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, Match[]> = {};
@@ -133,25 +160,41 @@ function AdminPage() {
     }
   };
 
-  const savePrizePot = async (e: React.FormEvent) => {
+  const saveEntryFee = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amount = Math.max(0, Math.round(Number(prizePot)));
+    const amount = Math.max(0, Math.round(Number(entryFee)));
     if (!Number.isFinite(amount)) {
       toast.error("Ange en giltig summa");
       return;
     }
 
     const { error } = await db.from("app_settings").upsert({
-      key: "prize_pot",
+      key: "entry_fee",
       value: { amount },
     });
 
     if (error) toast.error(error.message);
     else {
-      setPrizePot(String(amount));
-      toast.success("Prispotten uppdaterad");
+      setEntryFee(String(amount));
+      toast.success("Inträdet uppdaterat");
     }
   };
+
+  const togglePaid = async (participant: Participant) => {
+    const { error } = await db
+      .from("profiles")
+      .update({ is_paid: !participant.is_paid })
+      .eq("id", participant.id);
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success(participant.is_paid ? "Markerad som obetald" : "Markerad som betald");
+      loadParticipants();
+    }
+  };
+
+  const paidCount = participants.filter((participant) => participant.is_paid).length;
+  const computedPrizePot = Math.max(0, Math.round(Number(entryFee) || 0)) * paidCount;
 
   return (
     <div className="space-y-6">
@@ -160,20 +203,61 @@ function AdminPage() {
         <h1 className="font-display text-3xl">Hantera matcher</h1>
       </div>
 
-      <form onSubmit={savePrizePot} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
-        <div className="flex items-end gap-3">
+      <form onSubmit={saveEntryFee} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
+        <div className="flex flex-wrap items-end gap-3">
           <Input
-            label="Prispott"
+            label="Inträde per person"
             type="number"
-            value={prizePot}
-            onChange={setPrizePot}
-            className="flex-1"
+            value={entryFee}
+            onChange={setEntryFee}
+            className="min-w-[180px] flex-1"
           />
+          <div className="min-w-[180px] rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Automatisk prispott</div>
+            <div className="font-display text-2xl text-accent">{computedPrizePot} kr</div>
+            <div className="text-xs text-muted-foreground">{paidCount} betalda x {Math.max(0, Math.round(Number(entryFee) || 0))} kr</div>
+          </div>
           <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-secondary px-4 text-sm font-semibold">
             <Save className="size-3.5" /> Spara
           </button>
         </div>
       </form>
+
+      <section className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl text-accent">Deltagare</h2>
+            <p className="text-sm text-muted-foreground">Markera vilka som faktiskt har betalat inträdet.</p>
+          </div>
+          <div className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
+            {paidCount}/{participants.length} betalda
+          </div>
+        </div>
+        <div className="space-y-2">
+          {participants.map((participant) => (
+            <div key={participant.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2">
+              <div>
+                <div className="font-semibold">{participant.username}</div>
+                <div className="text-xs text-muted-foreground">
+                  {participant.is_paid ? "Betald" : "Ej betald"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => togglePaid(participant)}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold ${participant.is_paid ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
+              >
+                {participant.is_paid ? "Markera som obetald" : "Markera som betald"}
+              </button>
+            </div>
+          ))}
+          {participants.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+              Inga deltagare ännu.
+            </div>
+          )}
+        </div>
+      </section>
 
       <form onSubmit={addMatch} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
         <div className="grid grid-cols-3 gap-2">
