@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Lock, Clock, Check, ChevronDown } from "lucide-react";
+import { Lock, Clock, Check, ChevronDown, ChevronRight, Users } from "lucide-react";
 
 export const Route = createFileRoute("/matches")({
   component: () => (
@@ -183,6 +183,7 @@ function MatchCard({ match, pred, locked, onSave }: {
   const kickoff = new Date(match.kickoff);
   const dateStr = kickoff.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
   const timeStr = kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+  const canViewTips = isToday(match.kickoff);
 
   const save = async () => {
     if (!user) return;
@@ -246,6 +247,18 @@ function MatchCard({ match, pred, locked, onSave }: {
           {pred ? <><Check className="size-4" /> Uppdatera tips</> : "Spara tips"}
         </button>
       )}
+
+      {canViewTips && (
+        <Link
+          to="/matches/$matchId"
+          params={{ matchId: match.id }}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 py-1.5 text-xs font-semibold text-accent transition hover:bg-accent/15 active:scale-[0.98]"
+        >
+          <Users className="size-4" />
+          Se alla tips
+          <ChevronRight className="size-4" />
+        </Link>
+      )}
     </div>
   );
 }
@@ -263,5 +276,15 @@ function ScoreInput({ value, onChange, disabled }: { value: string; onChange: (v
       className="h-9 w-10 rounded-md border border-border bg-input text-center text-base font-bold tabular-nums text-foreground outline-none focus:border-accent disabled:opacity-60"
       placeholder="–"
     />
+  );
+}
+
+function isToday(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
   );
 }

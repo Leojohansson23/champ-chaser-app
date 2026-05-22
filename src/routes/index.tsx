@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CalendarDays, MessageCircle, Send, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, ChevronRight, MessageCircle, Send, Trash2, Trophy } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -296,10 +296,17 @@ function TodayMatchCard({ match }: { match: Match }) {
   const hasResult = match.home_score !== null && match.away_score !== null;
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+    <Link
+      to="/matches/$matchId"
+      params={{ matchId: match.id }}
+      className="block rounded-xl border border-border/60 bg-card/60 p-3 transition hover:border-accent/60 hover:bg-card active:scale-[0.99]"
+    >
       <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
         <span>Grupp {match.group_name}</span>
-        <span>{kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span className="flex items-center gap-1">
+          {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+          <ChevronRight className="size-3.5" />
+        </span>
       </div>
       <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <div className="truncate text-right font-semibold">{match.home_team}</div>
@@ -308,7 +315,7 @@ function TodayMatchCard({ match }: { match: Match }) {
         </div>
         <div className="truncate font-semibold">{match.away_team}</div>
       </div>
-    </div>
+    </Link>
   );
 }
 
