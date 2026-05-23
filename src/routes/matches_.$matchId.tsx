@@ -22,6 +22,8 @@ type Match = {
   kickoff: string;
   home_score: number | null;
   away_score: number | null;
+  city: string | null;
+  stadium: string | null;
 };
 
 type PredictionRow = {
@@ -126,6 +128,7 @@ function MatchDetailPage() {
   const hasResult = match?.home_score !== null && match?.away_score !== null;
   const canView = !!match && isToday(match.kickoff);
   const kickoff = useMemo(() => (match ? new Date(match.kickoff) : null), [match]);
+  const venue = match ? [match.city, match.stadium].filter(Boolean).join(" · ") : "";
   const currentUserId = user?.id ?? "";
   const ownPrediction = predictions.find((prediction) => prediction.user_id === currentUserId);
   const otherPredictions = predictions.filter((prediction) => prediction.user_id !== currentUserId);
@@ -179,6 +182,11 @@ function MatchDetailPage() {
             })}
           </span>
         </div>
+        {venue && (
+          <div className="mt-2 truncate text-center text-xs font-medium text-muted-foreground">
+            {venue}
+          </div>
+        )}
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <div className="min-w-0 text-right font-display text-4xl leading-none">
             <TeamWithFlag team={match.home_team} align="right" flagClassName="h-6 w-9" />

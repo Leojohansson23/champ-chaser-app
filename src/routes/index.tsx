@@ -23,6 +23,8 @@ type Match = {
   kickoff: string;
   home_score: number | null;
   away_score: number | null;
+  city: string | null;
+  stadium: string | null;
 };
 
 type LeaderboardRow = {
@@ -295,29 +297,36 @@ function HomePage() {
 function TodayMatchCard({ match }: { match: Match }) {
   const kickoff = new Date(match.kickoff);
   const hasResult = match.home_score !== null && match.away_score !== null;
+  const venue = [match.city, match.stadium].filter(Boolean).join(" · ");
 
   return (
     <Link
       to="/matches/$matchId"
       params={{ matchId: match.id }}
-      className="group block rounded-xl border border-border/60 bg-card/60 p-3 transition hover:border-accent/70 hover:bg-card active:scale-[0.99]"
+      className="group block rounded-xl border border-border/60 bg-card/60 p-3.5 transition hover:border-accent/70 hover:bg-card active:scale-[0.99]"
     >
-      <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span>Grupp {match.group_name}</span>
-        <span>Matchstart - {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</span>
+        <span className="min-h-5 truncate text-center text-[11px] font-medium normal-case tracking-normal text-muted-foreground/80">
+          {venue}
+        </span>
+        <span className="justify-self-end rounded-full border border-border/60 bg-background/45 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
+          Matchstart {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+        </span>
       </div>
-      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="truncate text-right font-semibold">
-          <TeamWithFlag team={match.home_team} align="right" />
+
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+        <div className="min-w-0 text-right text-base font-bold leading-tight">
+          <TeamWithFlag team={match.home_team} align="right" flagClassName="h-4 w-6" />
         </div>
-        <div className="font-display text-xl text-accent">
+        <div className="rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1 font-display text-2xl leading-none text-accent">
           {hasResult ? `${match.home_score}-${match.away_score}` : "vs"}
         </div>
-        <div className="truncate font-semibold">
-          <TeamWithFlag team={match.away_team} />
+        <div className="min-w-0 text-base font-bold leading-tight">
+          <TeamWithFlag team={match.away_team} flagClassName="h-4 w-6" />
         </div>
       </div>
-      <div className="mt-2 flex justify-end">
+      <div className="mt-3 flex justify-end">
         <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition group-hover:border-accent/45 group-hover:bg-accent/15">
           <Users className="size-3" />
           Visa tips

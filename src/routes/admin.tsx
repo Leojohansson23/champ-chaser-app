@@ -18,6 +18,8 @@ type Match = {
   kickoff: string;
   home_score: number | null;
   away_score: number | null;
+  city: string | null;
+  stadium: string | null;
 };
 
 type SideBet = {
@@ -43,7 +45,7 @@ function AdminPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [entryFee, setEntryFee] = useState("100");
   const [draft, setDraft] = useState({
-    group_name: "A", home_team: "", away_team: "", kickoff: "",
+    group_name: "A", home_team: "", away_team: "", kickoff: "", city: "", stadium: "",
   });
   const [sideBetDraft, setSideBetDraft] = useState({
     question: "", points: "3", deadline: "",
@@ -129,11 +131,13 @@ function AdminPage() {
       home_team: draft.home_team,
       away_team: draft.away_team,
       kickoff: new Date(draft.kickoff).toISOString(),
+      city: draft.city || null,
+      stadium: draft.stadium || null,
     });
     if (error) toast.error(error.message);
     else {
       toast.success("Match tillagd");
-      setDraft({ group_name: draft.group_name, home_team: "", away_team: "", kickoff: "" });
+      setDraft({ group_name: draft.group_name, home_team: "", away_team: "", kickoff: "", city: "", stadium: "" });
       load();
     }
   };
@@ -266,6 +270,10 @@ function AdminPage() {
           <Input label="Hemma" value={draft.home_team} onChange={v => setDraft(d => ({...d, home_team: v}))} className="col-span-2" />
         </div>
         <Input label="Borta" value={draft.away_team} onChange={v => setDraft(d => ({...d, away_team: v}))} />
+        <div className="grid grid-cols-2 gap-2">
+          <Input label="Stad" value={draft.city} onChange={v => setDraft(d => ({...d, city: v}))} />
+          <Input label="Stadium" value={draft.stadium} onChange={v => setDraft(d => ({...d, stadium: v}))} />
+        </div>
         <Input label="Avspark" type="datetime-local" value={draft.kickoff} onChange={v => setDraft(d => ({...d, kickoff: v}))} />
         <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">
           <Plus className="size-4" /> Lägg till match
@@ -322,14 +330,31 @@ function AdminPage() {
 function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void }) {
   const [h, setH] = useState(match.home_score?.toString() ?? "");
   const [a, setA] = useState(match.away_score?.toString() ?? "");
+  const [city, setCity] = useState(match.city ?? "");
+  const [stadium, setStadium] = useState(match.stadium ?? "");
+
+  useEffect(() => {
+    setH(match.home_score?.toString() ?? "");
+    setA(match.away_score?.toString() ?? "");
+    setCity(match.city ?? "");
+    setStadium(match.stadium ?? "");
+  }, [match]);
 
   const save = async () => {
     const hs = h === "" ? null : parseInt(h);
     const as = a === "" ? null : parseInt(a);
-    const { error } = await supabase.from("matches").update({ home_score: hs, away_score: as }).eq("id", match.id);
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        home_score: hs,
+        away_score: as,
+        city: city.trim() || null,
+        stadium: stadium.trim() || null,
+      })
+      .eq("id", match.id);
     if (error) toast.error(error.message);
     else {
-      toast.success("Resultat sparat");
+      toast.success("Match sparad");
       onChange();
     }
   };
@@ -361,8 +386,12 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
           <TeamWithFlag team={match.away_team} />
         </div>
       </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <Input label="Stad" value={city} onChange={setCity} />
+        <Input label="Stadium" value={stadium} onChange={setStadium} />
+      </div>
       <button onClick={save} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
-        <Save className="size-3.5" /> Spara resultat
+        <Save className="size-3.5" /> Spara match
       </button>
     </div>
   );

@@ -23,6 +23,8 @@ type Match = {
   kickoff: string;
   home_score: number | null;
   away_score: number | null;
+  city: string | null;
+  stadium: string | null;
 };
 
 type Prediction = {
@@ -185,6 +187,7 @@ function MatchCard({ match, pred, locked, onSave }: {
   const dateStr = kickoff.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
   const timeStr = kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
   const canViewTips = isToday(match.kickoff);
+  const venue = [match.city, match.stadium].filter(Boolean).join(" · ");
 
   const save = async () => {
     if (!user) return;
@@ -222,6 +225,11 @@ function MatchCard({ match, pred, locked, onSave }: {
           {pointsBadge}
         </div>
       </div>
+      {venue && (
+        <div className="mt-1 truncate text-[11px] font-medium text-muted-foreground">
+          {venue}
+        </div>
+      )}
 
       <div className="mt-2 rounded-lg border border-border/40 bg-background/25 p-2">
         <div className="grid gap-1.5">

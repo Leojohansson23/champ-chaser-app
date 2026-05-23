@@ -18,32 +18,38 @@ export type Database = {
         Row: {
           away_score: number | null
           away_team: string
+          city: string | null
           created_at: string
           group_name: string
           home_score: number | null
           home_team: string
           id: string
           kickoff: string
+          stadium: string | null
         }
         Insert: {
           away_score?: number | null
           away_team: string
+          city?: string | null
           created_at?: string
           group_name: string
           home_score?: number | null
           home_team: string
           id?: string
           kickoff: string
+          stadium?: string | null
         }
         Update: {
           away_score?: number | null
           away_team?: string
+          city?: string | null
           created_at?: string
           group_name?: string
           home_score?: number | null
           home_team?: string
           id?: string
           kickoff?: string
+          stadium?: string | null
         }
         Relationships: []
       }
