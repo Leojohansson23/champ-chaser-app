@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
+import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
 import { Lock, Clock, Check, ChevronDown, ChevronRight, Users } from "lucide-react";
 
@@ -223,13 +224,17 @@ function MatchCard({ match, pred, locked, onSave }: {
       </div>
 
       <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-        <div className="min-w-0 text-right text-sm font-semibold leading-tight">{match.home_team}</div>
+        <div className="min-w-0 text-right text-sm font-semibold leading-tight">
+          <TeamWithFlag team={match.home_team} align="right" />
+        </div>
         <div className="flex items-center gap-1">
           <ScoreInput value={home} onChange={setHome} disabled={matchLocked} />
           <span className="text-muted-foreground">–</span>
           <ScoreInput value={away} onChange={setAway} disabled={matchLocked} />
         </div>
-        <div className="min-w-0 text-sm font-semibold leading-tight">{match.away_team}</div>
+        <div className="min-w-0 text-sm font-semibold leading-tight">
+          <TeamWithFlag team={match.away_team} />
+        </div>
       </div>
 
       {hasResult && (

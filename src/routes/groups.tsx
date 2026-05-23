@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry } from "@/lib/entry-completion";
+import { TeamWithFlag } from "../lib/flags";
 
 export const Route = createFileRoute("/groups")({
   component: () => (
@@ -110,7 +111,9 @@ function GroupsPage() {
                     {rows.map((row, index) => (
                       <tr key={row.team} className="border-b border-border/30 last:border-0">
                         <td className="py-2 text-muted-foreground">{index + 1}</td>
-                        <td className="py-2 font-semibold">{row.team}</td>
+                        <td className="py-2 font-semibold">
+                          <TeamWithFlag team={row.team} />
+                        </td>
                         <td className="py-2 text-center text-muted-foreground">{row.played}</td>
                         <td className="py-2 text-center text-muted-foreground">{row.won}</td>
                         <td className="py-2 text-center text-muted-foreground">{row.drawn}</td>

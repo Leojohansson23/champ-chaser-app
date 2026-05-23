@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Medal, Trophy, UserRound, Users } from "lucide
 import { RequireCompletedEntry } from "@/lib/entry-completion";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { TeamWithFlag } from "../lib/flags";
 
 export const Route = createFileRoute("/matches_/$matchId")({
   component: () => (
@@ -180,12 +181,14 @@ function MatchDetailPage() {
         </div>
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <div className="min-w-0 text-right font-display text-4xl leading-none">
-            {match.home_team}
+            <TeamWithFlag team={match.home_team} align="right" flagClassName="h-6 w-9" />
           </div>
           <div className="rounded-xl border border-border/60 bg-background/60 px-4 py-2 font-display text-4xl leading-none text-accent">
             {hasResult ? `${match.home_score}-${match.away_score}` : "vs"}
           </div>
-          <div className="min-w-0 font-display text-4xl leading-none">{match.away_team}</div>
+          <div className="min-w-0 font-display text-4xl leading-none">
+            <TeamWithFlag team={match.away_team} flagClassName="h-6 w-9" />
+          </div>
         </div>
       </section>
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
+import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
 import { CalendarDays, ChevronRight, MessageCircle, Send, Trash2, Trophy } from "lucide-react";
 
@@ -309,11 +310,15 @@ function TodayMatchCard({ match }: { match: Match }) {
         </span>
       </div>
       <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="truncate text-right font-semibold">{match.home_team}</div>
+        <div className="truncate text-right font-semibold">
+          <TeamWithFlag team={match.home_team} align="right" />
+        </div>
         <div className="font-display text-xl text-accent">
           {hasResult ? `${match.home_score}-${match.away_score}` : "vs"}
         </div>
-        <div className="truncate font-semibold">{match.away_team}</div>
+        <div className="truncate font-semibold">
+          <TeamWithFlag team={match.away_team} />
+        </div>
       </div>
     </Link>
   );

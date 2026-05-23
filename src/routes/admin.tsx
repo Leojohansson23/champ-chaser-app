@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, ChevronDown } from "lucide-react";
 
@@ -348,13 +349,17 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
         <button onClick={del} className="text-destructive"><Trash2 className="size-4" /></button>
       </div>
       <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="text-right font-semibold">{match.home_team}</div>
+        <div className="text-right font-semibold">
+          <TeamWithFlag team={match.home_team} align="right" />
+        </div>
         <div className="flex items-center gap-1">
           <input value={h} onChange={e => setH(e.target.value)} type="number" min={0} max={20} placeholder="-" className="h-10 w-12 rounded-md border border-border bg-input text-center font-bold" />
           <span>–</span>
           <input value={a} onChange={e => setA(e.target.value)} type="number" min={0} max={20} placeholder="-" className="h-10 w-12 rounded-md border border-border bg-input text-center font-bold" />
         </div>
-        <div className="font-semibold">{match.away_team}</div>
+        <div className="font-semibold">
+          <TeamWithFlag team={match.away_team} />
+        </div>
       </div>
       <button onClick={save} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
         <Save className="size-3.5" /> Spara resultat
