@@ -7,9 +7,11 @@ import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
 import {
   CalendarDays,
+  Award,
   ChevronDown,
   ChevronRight,
   Clock3,
+  Coins,
   Medal,
   MessageCircle,
   Send,
@@ -65,6 +67,9 @@ function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [comments, setComments] = useState<CommentRow[]>([]);
+  const [prizePot, setPrizePot] = useState(0);
+  const [entryFee, setEntryFee] = useState(0);
+  const [paidCount, setPaidCount] = useState(0);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -79,24 +84,38 @@ function HomePage() {
 
   const loadHome = useCallback(async () => {
     if (!user) return;
-    const [{ data: matchRows }, { data: leaderboardRows }, { data: commentRows }] =
-      await Promise.all([
-        supabase.from("matches").select("*").order("kickoff"),
-        supabase
-          .from("leaderboard")
-          .select("*")
-          .order("total_points", { ascending: false })
-          .limit(10),
-        db
-          .from("comments")
-          .select("id, user_id, body, created_at, profiles(username)")
-          .order("created_at", { ascending: false })
-          .limit(20),
-      ]);
+    const [
+      { data: matchRows },
+      { data: leaderboardRows },
+      { data: commentRows },
+      { data: entryFeeSetting },
+      { data: profiles },
+    ] = await Promise.all([
+      supabase.from("matches").select("*").order("kickoff"),
+      supabase
+        .from("leaderboard")
+        .select("*")
+        .order("total_points", { ascending: false })
+        .limit(10),
+      db
+        .from("comments")
+        .select("id, user_id, body, created_at, profiles(username)")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      db.from("app_settings").select("value").eq("key", "entry_fee").maybeSingle(),
+      db.from("profiles").select("id, is_paid"),
+    ]);
 
     setMatches((matchRows ?? []) as Match[]);
     setLeaderboard(((leaderboardRows ?? []) as LeaderboardRow[]).slice(0, 10));
     setComments((commentRows ?? []) as CommentRow[]);
+    const fee = Number(entryFeeSetting?.value?.amount ?? 100);
+    const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter(
+      (profile) => profile.is_paid,
+    ).length;
+    setEntryFee(fee);
+    setPaidCount(paid);
+    setPrizePot(fee * paid);
   }, [user]);
 
   useEffect(() => {
@@ -162,9 +181,26 @@ function HomePage() {
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">Hem</p>
-        <h1 className="mt-1 font-display text-3xl">Hej{displayName ? `, ${displayName}` : ""}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Välkommen till VM-tipset.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Hem</p>
+            <h1 className="mt-1 truncate font-display text-3xl">
+              Hej{displayName ? `, ${displayName}` : ""}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">Välkommen till VM-tipset.</p>
+          </div>
+          <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-right">
+            <div className="flex items-center justify-end gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <Coins className="size-3.5 text-accent" /> Prispott
+            </div>
+            <div className="font-display text-2xl leading-none text-accent">
+              {formatPrizePot(prizePot)}
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {paidCount} betalda x {formatPrizePot(entryFee)}
+            </div>
+          </div>
+        </div>
         {!completion.loading && !completion.isComplete && (
           <div className="mt-4 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
             <div className="font-semibold text-accent">Fyll i alla tips först</div>
@@ -211,7 +247,7 @@ function HomePage() {
           <HomeRuleItem
             icon={<Target className="size-4" />}
             title="Sidospel"
-            text="Bonusfrågor har egna deadlines och poäng."
+            text="Bonusfrågor som stänger samtidigt som matchtipset."
           />
           <HomeRuleItem
             icon={<ShieldCheck className="size-4" />}
@@ -228,7 +264,7 @@ function HomePage() {
               <CalendarDays className="size-5" /> Dagens matcher
             </h2>
             <Link
-              to="/matches"
+              to="/tips"
               className="text-xs font-medium text-muted-foreground hover:text-foreground"
             >
               Alla matcher
@@ -272,7 +308,15 @@ function HomePage() {
                     className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-2"
                   >
                     <div className="flex size-7 items-center justify-center rounded-full bg-secondary font-display text-xs text-accent">
-                      {index + 1}
+                      {index === 0 ? (
+                        <Trophy className="size-4 text-accent" />
+                      ) : index === 1 ? (
+                        <Medal className="size-4 text-muted-foreground" />
+                      ) : index === 2 ? (
+                        <Award className="size-4 text-accent/70" />
+                      ) : (
+                        index + 1
+                      )}
                     </div>
                     <div className="min-w-0 flex-1 truncate text-sm font-semibold">
                       {row.username}
@@ -439,6 +483,14 @@ function HomeRuleItem({ icon, title, text }: { icon: ReactNode; title: string; t
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
     </div>
   );
+}
+
+function formatPrizePot(amount: number) {
+  return new Intl.NumberFormat("sv-SE", {
+    style: "currency",
+    currency: "SEK",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function formatTime(value: string) {

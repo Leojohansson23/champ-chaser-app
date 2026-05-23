@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TipsRouteImport } from './routes/tips'
 import { Route as SidebetsRouteImport } from './routes/sidebets'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as MatchesRouteImport } from './routes/matches'
@@ -21,6 +22,11 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MatchesMatchIdRouteImport } from './routes/matches_.$matchId'
 
+const TipsRoute = TipsRouteImport.update({
+  id: '/tips',
+  path: '/tips',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SidebetsRoute = SidebetsRouteImport.update({
   id: '/sidebets',
   path: '/sidebets',
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/tips': typeof TipsRoute
   '/matches/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRoutesByTo {
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/tips': typeof TipsRoute
   '/matches/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRoutesById {
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/tips': typeof TipsRoute
   '/matches_/$matchId': typeof MatchesMatchIdRoute
 }
 export interface FileRouteTypes {
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/tips'
     | '/matches/$matchId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/tips'
     | '/matches/$matchId'
   id:
     | '__root__'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/tips'
     | '/matches_/$matchId'
   fileRoutesById: FileRoutesById
 }
@@ -170,11 +182,19 @@ export interface RootRouteChildren {
   MatchesRoute: typeof MatchesRoute
   RulesRoute: typeof RulesRoute
   SidebetsRoute: typeof SidebetsRoute
+  TipsRoute: typeof TipsRoute
   MatchesMatchIdRoute: typeof MatchesMatchIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tips': {
+      id: '/tips'
+      path: '/tips'
+      fullPath: '/tips'
+      preLoaderRoute: typeof TipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sidebets': {
       id: '/sidebets'
       path: '/sidebets'
@@ -266,6 +286,7 @@ const rootRouteChildren: RootRouteChildren = {
   MatchesRoute: MatchesRoute,
   RulesRoute: RulesRoute,
   SidebetsRoute: SidebetsRoute,
+  TipsRoute: TipsRoute,
   MatchesMatchIdRoute: MatchesMatchIdRoute,
 }
 export const routeTree = rootRouteImport

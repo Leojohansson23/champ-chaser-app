@@ -24,6 +24,7 @@ import { TeamWithFlag } from "../lib/flags";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const db = supabase as any;
+const OVERVIEW_LIMIT = 5;
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -258,6 +259,10 @@ function AdminPage() {
   const finishedMatches = matches.filter(
     (match) => match.home_score !== null && match.away_score !== null,
   ).length;
+  const matchesAwaitingResult = matches.filter(
+    (match) => match.home_score === null || match.away_score === null,
+  );
+  const overviewMatches = matchesAwaitingResult.slice(0, OVERVIEW_LIMIT);
   const openSideBets = sideBets.filter((sideBet) => sideBet.correct_answer === null).length;
   const fee = Math.max(0, Math.round(Number(entryFee) || 0));
   const computedPrizePot = fee * paidCount;
@@ -324,14 +329,17 @@ function AdminPage() {
               icon={<CalendarClock className="size-4" />}
             >
               <div className="space-y-2">
-                {matches
-                  .filter((match) => match.home_score === null || match.away_score === null)
-                  .slice(0, 5)
-                  .map((match) => (
-                    <CompactMatch key={match.id} match={match} />
-                  ))}
-                {matches.length === finishedMatches && (
+                {overviewMatches.map((match) => (
+                  <CompactMatch key={match.id} match={match} />
+                ))}
+                {matchesAwaitingResult.length === 0 && (
                   <EmptyState text="Alla matcher som finns upplagda är resultatförda." />
+                )}
+                {matchesAwaitingResult.length > OVERVIEW_LIMIT && (
+                  <div className="rounded-xl border border-border/60 bg-background/20 px-3 py-2 text-xs text-muted-foreground">
+                    Visar nästa {OVERVIEW_LIMIT}. {matchesAwaitingResult.length - OVERVIEW_LIMIT}{" "}
+                    fler väntar under Matcher.
+                  </div>
                 )}
               </div>
             </AdminPanel>

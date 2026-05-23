@@ -18,7 +18,6 @@ import {
   Shield,
   LogOut,
   Table2,
-  Target,
   Home,
   BookOpenText,
   Users,
@@ -197,11 +196,8 @@ function BottomNav() {
         <Link to="/" className={item} activeOptions={{ exact: true }} activeProps={active}>
           <Home className="size-5" /> Hem
         </Link>
-        <Link to="/matches" className={item} activeProps={active}>
-          <ListChecks className="size-5" /> Matcher
-        </Link>
-        <Link to="/sidebets" className={item} activeProps={active}>
-          <Target className="size-5" /> Sidospel
+        <Link to="/tips" className={item} activeProps={active}>
+          <ListChecks className="size-5" /> Tips
         </Link>
         <Link to="/rules" className={item} activeProps={active}>
           <BookOpenText className="size-5" /> Regler/Info

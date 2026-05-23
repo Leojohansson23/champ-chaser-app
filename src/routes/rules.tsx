@@ -8,7 +8,6 @@ import {
   ListChecks,
   Medal,
   MessageCircle,
-  Shield,
   Table2,
   Target,
   Trophy,
@@ -52,7 +51,7 @@ function RulesPage() {
             "3 poäng för helt rätt resultat.",
             "1 poäng för rätt 1X2, alltså rätt vinnare eller oavgjort.",
             "0 poäng om utfallet är fel.",
-            "Poängen uppdateras när admin lägger in slutresultat.",
+            "Poängen uppdateras när slutresultatet är inlagt.",
           ]}
         />
         <InfoCard
@@ -60,9 +59,9 @@ function RulesPage() {
           title="Sidospel"
           items={[
             "Sidospel är bonusfrågor vid sidan av matcherna.",
-            "Varje sidospel kan ha egen poäng och egen deadline.",
+            "Sidospelen stänger samtidigt som matchtipset.",
             "Rätt sidospel räknas in i totalpoängen.",
-            "När admin sätter rätt svar visas facit och poäng.",
+            "När rätt svar är satt visas facit och poäng.",
           ]}
         />
         <InfoCard
@@ -70,8 +69,8 @@ function RulesPage() {
           title="Deadlines"
           items={[
             "Matchtips låses 10 juni 2026 kl. 23:59 svensk tid.",
+            "Sidospel låses vid samma tid.",
             "En match som redan fått resultat kan inte tippas om.",
-            "Sidospel låses vid sin egen deadline.",
             "Efter deadline går svaret inte att ändra.",
           ]}
         />
@@ -102,7 +101,7 @@ function RulesPage() {
             "Prispotten hör till huvudtävlingen.",
             "Den räknas på antal betalda deltagare gånger avgiften.",
             "Privata ligor har ingen egen prispott i appen.",
-            "Admin markerar vilka deltagare som har betalat.",
+            "Om prispotten inte stämmer kan en betalning sakna markering.",
           ]}
         />
       </section>
@@ -120,13 +119,8 @@ function RulesPage() {
           />
           <NavHint
             icon={<ListChecks className="size-4" />}
-            title="Matcher"
-            text="Här ser du matcher, resultat och vad andra har tippat."
-          />
-          <NavHint
-            icon={<Target className="size-4" />}
-            title="Sidospel"
-            text="Här ser du bonusfrågor, deadlines och rätt svar när de är klara."
+            title="Tips"
+            text="Här växlar du mellan matcher och sidospel."
           />
           <NavHint
             icon={<Trophy className="size-4" />}
@@ -148,11 +142,6 @@ function RulesPage() {
             title="Kommentarer"
             text="På Hem kan deltagare skriva korta kommentarer."
           />
-          <NavHint
-            icon={<Shield className="size-4" />}
-            title="Admin"
-            text="Admin hanterar matcher, resultat, sidospel och betalstatus."
-          />
         </div>
       </section>
 
@@ -160,8 +149,7 @@ function RulesPage() {
         <h2 className="font-display text-xl text-accent">Snabbvägar</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <QuickLink to="/entry">Tippa klart</QuickLink>
-          <QuickLink to="/matches">Matcher</QuickLink>
-          <QuickLink to="/sidebets">Sidospel</QuickLink>
+          <QuickLink to="/tips">Tips</QuickLink>
           <QuickLink to="/leaderboard">Topplista</QuickLink>
           <QuickLink to="/leagues">Ligor</QuickLink>
         </div>
