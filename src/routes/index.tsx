@@ -5,7 +5,7 @@ import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completio
 import { supabase } from "@/integrations/supabase/client";
 import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
-import { CalendarDays, ChevronRight, MessageCircle, Send, Trash2, Trophy, Users } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, MessageCircle, Send, Trash2, Trophy, Users } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -50,6 +50,7 @@ function HomePage() {
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const db = supabase as any;
   const displayName =
     user?.user_metadata?.username ??
@@ -236,59 +237,79 @@ function HomePage() {
         )}
       </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-display text-xl text-accent">
-            <MessageCircle className="size-5" /> Kommentarer
-          </h2>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Senaste 20</span>
-        </div>
-        <form onSubmit={sendComment} className="rounded-xl border border-border/60 bg-card/60 p-2.5">
-          <div className="flex gap-2">
-            <input
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              maxLength={300}
-              placeholder="Skriv något..."
-              className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-accent"
-            />
-            <button
-              disabled={sending || !comment.trim()}
-              className="flex h-10 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
-            >
-              <Send className="size-4" />
-            </button>
-          </div>
-        </form>
+      <section className="rounded-2xl border border-border/60 bg-card/45 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setChatOpen(open => !open)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="flex size-9 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-accent">
+              <MessageCircle className="size-4" />
+            </span>
+            <span>
+              <span className="block font-display text-xl text-accent">Kommentarer</span>
+              <span className="block text-xs text-muted-foreground">
+                {comments.length === 0 ? "Inga kommentarer än" : `${comments.length} senaste`}
+              </span>
+            </span>
+          </span>
+          <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {chatOpen ? "Stäng" : "Öppna"}
+            <ChevronDown className={`size-4 transition-transform ${chatOpen ? "rotate-180" : ""}`} />
+          </span>
+        </button>
 
-        <div className="comment-scroll max-h-[360px] space-y-1.5 overflow-y-auto rounded-2xl border border-border/60 bg-card/35 p-2 pr-1.5">
-          {comments.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              Inga kommentarer än.
-            </div>
-          ) : (
-            comments.map(row => (
-              <article key={row.id} className="rounded-lg bg-background/45 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1 truncate text-sm">
-                    <span className="font-semibold">{row.profiles?.username ?? "Okänd"}</span>
-                    <span className="ml-2 text-[11px] text-muted-foreground">{formatTime(row.created_at)}</span>
-                  </div>
-                  {(row.user_id === user.id || isAdmin) && (
-                    <button
-                      type="button"
-                      onClick={() => deleteComment(row.id)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
+        {chatOpen && (
+          <div className="space-y-3 border-t border-border/60 p-3">
+            <form onSubmit={sendComment} className="rounded-xl border border-border/60 bg-card/60 p-2.5">
+              <div className="flex gap-2">
+                <input
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  maxLength={300}
+                  placeholder="Skriv något..."
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+                <button
+                  disabled={sending || !comment.trim()}
+                  className="flex h-10 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  <Send className="size-4" />
+                </button>
+              </div>
+            </form>
+
+            <div className="comment-scroll max-h-[360px] space-y-1.5 overflow-y-auto rounded-xl border border-border/60 bg-background/25 p-2 pr-1.5">
+              {comments.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Inga kommentarer än.
                 </div>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">{row.body}</p>
-              </article>
-            ))
-          )}
-        </div>
+              ) : (
+                comments.map(row => (
+                  <article key={row.id} className="rounded-lg bg-background/45 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1 truncate text-sm">
+                        <span className="font-semibold">{row.profiles?.username ?? "Okänd"}</span>
+                        <span className="ml-2 text-[11px] text-muted-foreground">{formatTime(row.created_at)}</span>
+                      </div>
+                      {(row.user_id === user.id || isAdmin) && (
+                        <button
+                          type="button"
+                          onClick={() => deleteComment(row.id)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">{row.body}</p>
+                  </article>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -297,7 +318,7 @@ function HomePage() {
 function TodayMatchCard({ match }: { match: Match }) {
   const kickoff = new Date(match.kickoff);
   const hasResult = match.home_score !== null && match.away_score !== null;
-  const venue = [match.city, match.stadium].filter(Boolean).join(" · ");
+  const hasVenue = !!(match.city || match.stadium);
 
   return (
     <Link
@@ -305,15 +326,26 @@ function TodayMatchCard({ match }: { match: Match }) {
       params={{ matchId: match.id }}
       className="group block rounded-xl border border-border/60 bg-card/60 p-3.5 transition hover:border-accent/70 hover:bg-card active:scale-[0.99]"
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="flex items-start justify-between gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span>Grupp {match.group_name}</span>
-        <span className="min-h-5 truncate text-center text-[11px] font-medium normal-case tracking-normal text-muted-foreground/80">
-          {venue}
-        </span>
         <span className="justify-self-end rounded-full border border-border/60 bg-background/45 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
           Matchstart {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
+      {hasVenue && (
+        <div className="mx-auto mt-1 max-w-[78%] text-center leading-tight">
+          {match.city && (
+            <div className="truncate text-[11px] font-semibold text-foreground/90">
+              {match.city}
+            </div>
+          )}
+          {match.stadium && (
+            <div className="truncate text-[10px] font-medium text-muted-foreground">
+              {match.stadium}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
         <div className="min-w-0 text-right text-base font-bold leading-tight">
