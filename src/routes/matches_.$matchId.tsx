@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CalendarDays, Trophy, UserRound, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Medal, Trophy, UserRound, Users } from "lucide-react";
 import { RequireCompletedEntry } from "@/lib/entry-completion";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -128,6 +128,12 @@ function MatchDetailPage() {
   const currentUserId = user?.id ?? "";
   const ownPrediction = predictions.find((prediction) => prediction.user_id === currentUserId);
   const otherPredictions = predictions.filter((prediction) => prediction.user_id !== currentUserId);
+  const rankedPredictions = [...predictions].sort(
+    (a, b) =>
+      b.points - a.points ||
+      Number(b.user_id === currentUserId) - Number(a.user_id === currentUserId) ||
+      a.username.localeCompare(b.username, "sv"),
+  );
 
   if (loading || !user || !fetched) return null;
 
@@ -201,14 +207,32 @@ function MatchDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-display text-2xl text-accent">
-            <Users className="size-4" /> Deltagare
+            {hasResult ? <Trophy className="size-4" /> : <Users className="size-4" />}
+            {hasResult ? "Resultat på tipset" : "Deltagare"}
           </h2>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {otherPredictions.length} tips
+            {hasResult ? rankedPredictions.length : otherPredictions.length} tips
           </span>
         </div>
 
-        {otherPredictions.length === 0 ? (
+        {hasResult ? (
+          rankedPredictions.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Ingen har tippat på den här matchen än.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {rankedPredictions.map((prediction, index) => (
+                <ResultPredictionCard
+                  key={prediction.id}
+                  prediction={prediction}
+                  rank={index + 1}
+                  isCurrentUser={prediction.user_id === currentUserId}
+                />
+              ))}
+            </div>
+          )
+        ) : otherPredictions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Inga andra deltagare har tippat på den här matchen än.
           </div>
@@ -235,25 +259,74 @@ function PredictionCard({
 }) {
   return (
     <article
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-        highlighted ? "border-accent/50 bg-accent/10" : "border-border/60 bg-card/60"
+      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${
+        highlighted ? "border-cyan-400/45 bg-cyan-400/10" : "border-border/60 bg-card/60"
       }`}
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate text-base font-semibold">{prediction.username}</div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">
+        <div className="truncate text-sm font-semibold leading-tight">{prediction.username}</div>
+        <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
           Tippat resultat
         </div>
       </div>
-      <div className="rounded-lg bg-background/70 px-3 py-1 font-display text-3xl leading-none text-foreground">
+      <div className="rounded-md bg-background/70 px-2.5 py-1 font-display text-2xl leading-none text-foreground">
         {prediction.predicted_home}-{prediction.predicted_away}
       </div>
       {hasResult && (
-        <div className="flex min-w-12 items-center justify-end gap-1 text-right font-display text-xl text-accent">
+        <div className="flex min-w-9 items-center justify-end gap-1 text-right font-display text-lg text-accent">
           <Trophy className="size-4" />
           {prediction.points}
         </div>
       )}
+    </article>
+  );
+}
+
+function ResultPredictionCard({
+  prediction,
+  rank,
+  isCurrentUser,
+}: {
+  prediction: DisplayPrediction;
+  rank: number;
+  isCurrentUser: boolean;
+}) {
+  const style = getResultStyle(prediction.points);
+
+  return (
+    <article className={`rounded-lg border px-3 py-2 ${style.card}`}>
+      <div className="flex min-h-9 items-center gap-2.5">
+        <div
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${style.rank}`}
+        >
+          {prediction.points >= 3 ? <Medal className="size-3" /> : rank}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-semibold leading-tight">
+              {prediction.username}
+            </span>
+            {isCurrentUser && (
+              <span className="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-accent">
+                Du
+              </span>
+            )}
+          </div>
+          <div
+            className={`mt-0.5 text-[10px] font-semibold uppercase tracking-wider ${style.text}`}
+          >
+            {style.label}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <div className="rounded-md bg-background/70 px-2.5 py-1 font-display text-2xl leading-none text-foreground">
+            {prediction.predicted_home}-{prediction.predicted_away}
+          </div>
+          <div className={`w-7 text-right font-display text-base leading-none ${style.text}`}>
+            {prediction.points}p
+          </div>
+        </div>
+      </div>
     </article>
   );
 }
@@ -273,6 +346,33 @@ function UnavailableMatch({ title, body }: { title: string; body: string }) {
       </section>
     </div>
   );
+}
+
+function getResultStyle(points: number) {
+  if (points >= 3) {
+    return {
+      label: "Full pott",
+      card: "border-green-500/45 bg-green-500/10 shadow-[inset_2px_0_0_rgba(34,197,94,0.85)]",
+      rank: "bg-green-500 text-white",
+      text: "text-green-400",
+    };
+  }
+
+  if (points === 1) {
+    return {
+      label: "Rätt 1X2",
+      card: "border-yellow-500/45 bg-yellow-500/10 shadow-[inset_2px_0_0_rgba(234,179,8,0.9)]",
+      rank: "bg-yellow-500 text-black",
+      text: "text-yellow-300",
+    };
+  }
+
+  return {
+    label: "Fel",
+    card: "border-red-500/40 bg-red-500/10 shadow-[inset_2px_0_0_rgba(239,68,68,0.85)]",
+    rank: "bg-red-500 text-white",
+    text: "text-red-300",
+  };
 }
 
 function isToday(value: string) {
