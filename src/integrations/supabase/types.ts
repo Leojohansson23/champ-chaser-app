@@ -94,6 +94,74 @@ export type Database = {
           },
         ]
       }
+      private_league_members: {
+        Row: {
+          id: string
+          joined_at: string
+          league_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          league_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          league_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_league_members_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "private_leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "private_league_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      private_leagues: {
+        Row: {
+          created_at: string
+          id: string
+          invite_code: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invite_code?: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invite_code?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_leagues_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -150,6 +218,17 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      is_private_league_member: {
+        Args: {
+          _league_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      join_private_league: {
+        Args: { _invite_code: string }
+        Returns: string
       }
       recompute_points_for_match: {
         Args: { _match_id: string }

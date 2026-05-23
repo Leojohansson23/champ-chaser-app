@@ -1,11 +1,28 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
-import { CalendarDays, ChevronDown, ChevronRight, MessageCircle, Send, Trash2, Trophy, Users } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+  Medal,
+  MessageCircle,
+  Send,
+  ShieldCheck,
+  Target,
+  Trash2,
+  Trophy,
+  Users,
+} from "lucide-react";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const db = supabase as any;
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -51,7 +68,6 @@ function HomePage() {
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  const db = supabase as any;
   const displayName =
     user?.user_metadata?.username ??
     user?.user_metadata?.name ??
@@ -61,22 +77,27 @@ function HomePage() {
     if (!loading && !user) navigate({ to: "/auth" });
   }, [loading, navigate, user]);
 
-  const loadHome = async () => {
+  const loadHome = useCallback(async () => {
     if (!user) return;
-    const [{ data: matchRows }, { data: leaderboardRows }, { data: commentRows }] = await Promise.all([
-      supabase.from("matches").select("*").order("kickoff"),
-      supabase.from("leaderboard").select("*").order("total_points", { ascending: false }).limit(10),
-      db
-        .from("comments")
-        .select("id, user_id, body, created_at, profiles(username)")
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+    const [{ data: matchRows }, { data: leaderboardRows }, { data: commentRows }] =
+      await Promise.all([
+        supabase.from("matches").select("*").order("kickoff"),
+        supabase
+          .from("leaderboard")
+          .select("*")
+          .order("total_points", { ascending: false })
+          .limit(10),
+        db
+          .from("comments")
+          .select("id, user_id, body, created_at, profiles(username)")
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ]);
 
     setMatches((matchRows ?? []) as Match[]);
     setLeaderboard(((leaderboardRows ?? []) as LeaderboardRow[]).slice(0, 10));
     setComments((commentRows ?? []) as CommentRow[]);
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -96,11 +117,11 @@ function HomePage() {
       window.removeEventListener("focus", loadHome);
       supabase.removeChannel(ch);
     };
-  }, [user]);
+  }, [loadHome, user]);
 
   const todayMatches = useMemo(() => {
     const now = new Date();
-    return matches.filter(match => {
+    return matches.filter((match) => {
       const kickoff = new Date(match.kickoff);
       return (
         kickoff.getFullYear() === now.getFullYear() &&
@@ -165,22 +186,39 @@ function HomePage() {
       <section className="rounded-2xl border border-border/60 bg-card/45 p-4 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Regler</p>
-            <h2 className="mt-1 font-display text-xl text-accent">Kort version</h2>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Kom ihåg</p>
+            <h2 className="mt-1 font-display text-xl text-accent">Det viktigaste</h2>
           </div>
           <Link
             to="/rules"
-            className="shrink-0 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
           >
-            Läs alla regler
+            Alla regler
+            <ChevronRight className="size-3.5" />
           </Link>
         </div>
-        <ul className="mt-3 space-y-1.5 text-sm text-foreground/90">
-          <li>Exakt resultat ger 2 poäng, rätt tecken ger 1 poäng.</li>
-          <li>Alla matchtips måste vara klara innan första avspark.</li>
-          <li>Sidospel har egna deadlines och kan låsa separat.</li>
-          <li>Topplistan visas när du fyllt i allt, eller direkt för admin.</li>
-        </ul>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <HomeRuleItem
+            icon={<Medal className="size-4" />}
+            title="Poäng"
+            text="3p för rätt resultat, 1p för Rätt 1X2."
+          />
+          <HomeRuleItem
+            icon={<Clock3 className="size-4" />}
+            title="Deadline"
+            text="Matchtips låses 10 juni 2026 kl. 23:59."
+          />
+          <HomeRuleItem
+            icon={<Target className="size-4" />}
+            title="Sidospel"
+            text="Bonusfrågor har egna deadlines och poäng."
+          />
+          <HomeRuleItem
+            icon={<ShieldCheck className="size-4" />}
+            title="Lås upp"
+            text="Topplistor och ligor visas när alla tips är ifyllda."
+          />
+        </div>
       </section>
 
       <div className="grid gap-5 md:grid-cols-[minmax(0,1.45fr)_minmax(220px,0.8fr)] md:items-start">
@@ -189,7 +227,10 @@ function HomePage() {
             <h2 className="flex items-center gap-2 font-display text-xl text-accent">
               <CalendarDays className="size-5" /> Dagens matcher
             </h2>
-            <Link to="/matches" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Link
+              to="/matches"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
               Alla matcher
             </Link>
           </div>
@@ -199,7 +240,7 @@ function HomePage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {todayMatches.map(match => (
+              {todayMatches.map((match) => (
                 <TodayMatchCard key={match.id} match={match} />
               ))}
             </div>
@@ -212,7 +253,10 @@ function HomePage() {
               <h2 className="flex items-center gap-2 font-display text-lg text-accent">
                 <Trophy className="size-4" /> Topp 10
               </h2>
-              <Link to="/leaderboard" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+              <Link
+                to="/leaderboard"
+                className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
                 Hela listan
               </Link>
             </div>
@@ -223,12 +267,19 @@ function HomePage() {
             ) : (
               <ol className="space-y-1.5">
                 {leaderboard.map((row, index) => (
-                  <li key={row.user_id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-2">
+                  <li
+                    key={row.user_id}
+                    className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2.5 py-2"
+                  >
                     <div className="flex size-7 items-center justify-center rounded-full bg-secondary font-display text-xs text-accent">
                       {index + 1}
                     </div>
-                    <div className="min-w-0 flex-1 truncate text-sm font-semibold">{row.username}</div>
-                    <div className="font-display text-lg leading-none text-accent">{row.total_points}</div>
+                    <div className="min-w-0 flex-1 truncate text-sm font-semibold">
+                      {row.username}
+                    </div>
+                    <div className="font-display text-lg leading-none text-accent">
+                      {row.total_points}
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -240,7 +291,7 @@ function HomePage() {
       <section className="rounded-2xl border border-border/60 bg-card/45 backdrop-blur">
         <button
           type="button"
-          onClick={() => setChatOpen(open => !open)}
+          onClick={() => setChatOpen((open) => !open)}
           className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
         >
           <span className="flex items-center gap-2">
@@ -256,17 +307,22 @@ function HomePage() {
           </span>
           <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {chatOpen ? "Stäng" : "Öppna"}
-            <ChevronDown className={`size-4 transition-transform ${chatOpen ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`size-4 transition-transform ${chatOpen ? "rotate-180" : ""}`}
+            />
           </span>
         </button>
 
         {chatOpen && (
           <div className="space-y-3 border-t border-border/60 p-3">
-            <form onSubmit={sendComment} className="rounded-xl border border-border/60 bg-card/60 p-2.5">
+            <form
+              onSubmit={sendComment}
+              className="rounded-xl border border-border/60 bg-card/60 p-2.5"
+            >
               <div className="flex gap-2">
                 <input
                   value={comment}
-                  onChange={e => setComment(e.target.value)}
+                  onChange={(e) => setComment(e.target.value)}
                   maxLength={300}
                   placeholder="Skriv något..."
                   className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none focus:border-accent"
@@ -286,12 +342,14 @@ function HomePage() {
                   Inga kommentarer än.
                 </div>
               ) : (
-                comments.map(row => (
+                comments.map((row) => (
                   <article key={row.id} className="rounded-lg bg-background/45 px-3 py-2">
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1 truncate text-sm">
                         <span className="font-semibold">{row.profiles?.username ?? "Okänd"}</span>
-                        <span className="ml-2 text-[11px] text-muted-foreground">{formatTime(row.created_at)}</span>
+                        <span className="ml-2 text-[11px] text-muted-foreground">
+                          {formatTime(row.created_at)}
+                        </span>
                       </div>
                       {(row.user_id === user.id || isAdmin) && (
                         <button
@@ -303,7 +361,9 @@ function HomePage() {
                         </button>
                       )}
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">{row.body}</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-snug text-foreground">
+                      {row.body}
+                    </p>
                   </article>
                 ))
               )}
@@ -366,6 +426,18 @@ function TodayMatchCard({ match }: { match: Match }) {
         </span>
       </div>
     </Link>
+  );
+}
+
+function HomeRuleItem({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/30 p-3">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <span className="text-accent">{icon}</span>
+        {title}
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+    </div>
   );
 }
 

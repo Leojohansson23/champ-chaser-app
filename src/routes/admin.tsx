@@ -1,10 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  Banknote,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  CircleDollarSign,
+  ListChecks,
+  Plus,
+  Save,
+  Shield,
+  Target,
+  Trash2,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { TeamWithFlag } from "../lib/flags";
-import { toast } from "sonner";
-import { Plus, Trash2, Save, ChevronDown } from "lucide-react";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const db = supabase as any;
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -44,65 +63,90 @@ function AdminPage() {
   const [sideBets, setSideBets] = useState<SideBet[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [entryFee, setEntryFee] = useState("100");
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState({
-    group_name: "A", home_team: "", away_team: "", kickoff: "", city: "", stadium: "",
+    group_name: "A",
+    home_team: "",
+    away_team: "",
+    kickoff: "",
+    city: "",
+    stadium: "",
   });
   const [sideBetDraft, setSideBetDraft] = useState({
-    question: "", points: "3", deadline: "",
+    question: "",
+    points: "3",
+    deadline: "",
   });
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const db = supabase as any;
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
-  }, [loading, user, navigate]);
+  }, [loading, navigate, user]);
 
-  const load = async () => {
-    const { data } = await supabase.from("matches").select("*").order("kickoff");
+  const loadMatches = useCallback(async () => {
+    const { data, error } = await supabase.from("matches").select("*").order("kickoff");
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setMatches((data ?? []) as Match[]);
-  };
+  }, []);
 
-  const loadSideBets = async () => {
-    const { data } = await db.from("side_bets").select("*").order("deadline");
+  const loadSideBets = useCallback(async () => {
+    const { data, error } = await db.from("side_bets").select("*").order("deadline");
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setSideBets((data ?? []) as SideBet[]);
-  };
+  }, []);
 
-  const loadParticipants = async () => {
-    const { data, error } = await db.from("profiles").select("id, username, is_paid").order("username");
+  const loadParticipants = useCallback(async () => {
+    const { data, error } = await db
+      .from("profiles")
+      .select("id, username, is_paid")
+      .order("username");
     if (error) {
       toast.error(error.message);
       return;
     }
     setParticipants((data ?? []) as Participant[]);
-  };
+  }, []);
 
-  const loadEntryFee = async () => {
-    const { data, error } = await db.from("app_settings").select("value").eq("key", "entry_fee").maybeSingle();
+  const loadEntryFee = useCallback(async () => {
+    const { data, error } = await db
+      .from("app_settings")
+      .select("value")
+      .eq("key", "entry_fee")
+      .maybeSingle();
     if (error) {
       toast.error(error.message);
       return;
     }
     setEntryFee(String(Number(data?.value?.amount ?? 100)));
-  };
+  }, []);
+
+  const loadAll = useCallback(() => {
+    loadMatches();
+    loadSideBets();
+    loadParticipants();
+    loadEntryFee();
+  }, [loadEntryFee, loadMatches, loadParticipants, loadSideBets]);
 
   useEffect(() => {
-    if (user && isAdmin) {
-      load();
-      loadSideBets();
-      loadParticipants();
-      loadEntryFee();
-    }
-  }, [user, isAdmin]);
+    if (user && isAdmin) loadAll();
+  }, [isAdmin, loadAll, user]);
 
   const grouped = useMemo(() => {
     const groups: Record<string, Match[]> = {};
-    matches.forEach(match => { (groups[match.group_name] ??= []).push(match); });
+    matches.forEach((match) => {
+      (groups[match.group_name] ??= []).push(match);
+    });
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   }, [matches]);
 
   useEffect(() => {
     if (grouped.length === 0) return;
-    setOpenGroups(current => {
+    setOpenGroups((current) => {
       if (Object.keys(current).length > 0) return current;
       return { [grouped[0][0]]: true };
     });
@@ -123,35 +167,47 @@ function AdminPage() {
     );
   }
 
-  const addMatch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!draft.home_team || !draft.away_team || !draft.kickoff) return;
+  const addMatch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!draft.home_team.trim() || !draft.away_team.trim() || !draft.kickoff) {
+      toast.error("Fyll i lag och avspark");
+      return;
+    }
+
     const { error } = await supabase.from("matches").insert({
-      group_name: draft.group_name,
-      home_team: draft.home_team,
-      away_team: draft.away_team,
+      group_name: draft.group_name.trim().toUpperCase() || "A",
+      home_team: draft.home_team.trim(),
+      away_team: draft.away_team.trim(),
       kickoff: new Date(draft.kickoff).toISOString(),
-      city: draft.city || null,
-      stadium: draft.stadium || null,
+      city: draft.city.trim() || null,
+      stadium: draft.stadium.trim() || null,
     });
+
     if (error) toast.error(error.message);
     else {
       toast.success("Match tillagd");
-      setDraft({ group_name: draft.group_name, home_team: "", away_team: "", kickoff: "", city: "", stadium: "" });
-      load();
+      setDraft({
+        group_name: draft.group_name,
+        home_team: "",
+        away_team: "",
+        kickoff: "",
+        city: "",
+        stadium: "",
+      });
+      loadMatches();
     }
   };
 
-  const addSideBet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const points = parseInt(sideBetDraft.points);
-    if (!sideBetDraft.question || !sideBetDraft.deadline || isNaN(points) || points < 1) {
+  const addSideBet = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const points = parseInt(sideBetDraft.points, 10);
+    if (!sideBetDraft.question.trim() || !sideBetDraft.deadline || isNaN(points) || points < 1) {
       toast.error("Fyll i fråga, deadline och poäng");
       return;
     }
 
     const { error } = await db.from("side_bets").insert({
-      question: sideBetDraft.question,
+      question: sideBetDraft.question.trim(),
       options: [],
       points,
       deadline: new Date(sideBetDraft.deadline).toISOString(),
@@ -165,8 +221,8 @@ function AdminPage() {
     }
   };
 
-  const saveEntryFee = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveEntryFee = async (event: React.FormEvent) => {
+    event.preventDefault();
     const amount = Math.max(0, Math.round(Number(entryFee)));
     if (!Number.isFinite(amount)) {
       toast.error("Ange en giltig summa");
@@ -199,159 +255,397 @@ function AdminPage() {
   };
 
   const paidCount = participants.filter((participant) => participant.is_paid).length;
-  const computedPrizePot = Math.max(0, Math.round(Number(entryFee) || 0)) * paidCount;
+  const finishedMatches = matches.filter(
+    (match) => match.home_score !== null && match.away_score !== null,
+  ).length;
+  const openSideBets = sideBets.filter((sideBet) => sideBet.correct_answer === null).length;
+  const fee = Math.max(0, Math.round(Number(entryFee) || 0));
+  const computedPrizePot = fee * paidCount;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Admin</p>
-        <h1 className="font-display text-3xl">Hantera matcher</h1>
+        <h1 className="font-display text-3xl">Kontrollpanel</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Hantera resultat, sidospel, deltagare och prispott från ett ställe.
+        </p>
       </div>
 
-      <form onSubmit={saveEntryFee} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Input
-            label="Inträde per person"
-            type="number"
-            value={entryFee}
-            onChange={setEntryFee}
-            className="min-w-[180px] flex-1"
-          />
-          <div className="min-w-[180px] rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Automatisk prispott</div>
-            <div className="font-display text-2xl text-accent">{computedPrizePot} kr</div>
-            <div className="text-xs text-muted-foreground">{paidCount} betalda x {Math.max(0, Math.round(Number(entryFee) || 0))} kr</div>
-          </div>
-          <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-secondary px-4 text-sm font-semibold">
-            <Save className="size-3.5" /> Spara
-          </button>
-        </div>
-      </form>
-
-      <section className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl text-accent">Deltagare</h2>
-            <p className="text-sm text-muted-foreground">Markera vilka som faktiskt har betalat inträdet.</p>
-          </div>
-          <div className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
-            {paidCount}/{participants.length} betalda
-          </div>
-        </div>
-        <div className="space-y-2">
-          {participants.map((participant) => (
-            <div key={participant.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2">
-              <div>
-                <div className="font-semibold">{participant.username}</div>
-                <div className="text-xs text-muted-foreground">
-                  {participant.is_paid ? "Betald" : "Ej betald"}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => togglePaid(participant)}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold ${participant.is_paid ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}
-              >
-                {participant.is_paid ? "Markera som obetald" : "Markera som betald"}
-              </button>
-            </div>
-          ))}
-          {participants.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-              Inga deltagare ännu.
-            </div>
-          )}
-        </div>
+      <section className="grid gap-2 sm:grid-cols-2">
+        <StatCard
+          icon={<ListChecks className="size-4" />}
+          label="Matcher"
+          value={`${finishedMatches}/${matches.length}`}
+          text="resultat klara"
+        />
+        <StatCard
+          icon={<Target className="size-4" />}
+          label="Sidospel"
+          value={`${sideBets.length - openSideBets}/${sideBets.length}`}
+          text="rättade"
+        />
+        <StatCard
+          icon={<Users className="size-4" />}
+          label="Deltagare"
+          value={`${paidCount}/${participants.length}`}
+          text="betalda"
+        />
+        <StatCard
+          icon={<Trophy className="size-4" />}
+          label="Prispott"
+          value={`${computedPrizePot} kr`}
+          text={`${paidCount} x ${fee} kr`}
+        />
       </section>
 
-      <form onSubmit={addMatch} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
-        <div className="grid grid-cols-3 gap-2">
-          <Input label="Grupp" value={draft.group_name} onChange={v => setDraft(d => ({...d, group_name: v.toUpperCase().slice(0,2)}))} />
-          <Input label="Hemma" value={draft.home_team} onChange={v => setDraft(d => ({...d, home_team: v}))} className="col-span-2" />
+      <Tabs defaultValue="overview" className="space-y-4">
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="h-auto min-w-max">
+            <TabsTrigger value="overview" className="gap-1.5">
+              <Shield className="size-4" /> Översikt
+            </TabsTrigger>
+            <TabsTrigger value="matches" className="gap-1.5">
+              <ListChecks className="size-4" /> Matcher
+            </TabsTrigger>
+            <TabsTrigger value="sidebets" className="gap-1.5">
+              <Target className="size-4" /> Sidospel
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-1.5">
+              <Banknote className="size-4" /> Betalning
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <Input label="Borta" value={draft.away_team} onChange={v => setDraft(d => ({...d, away_team: v}))} />
-        <div className="grid grid-cols-2 gap-2">
-          <Input label="Stad" value={draft.city} onChange={v => setDraft(d => ({...d, city: v}))} />
-          <Input label="Stadium" value={draft.stadium} onChange={v => setDraft(d => ({...d, stadium: v}))} />
-        </div>
-        <Input label="Avspark" type="datetime-local" value={draft.kickoff} onChange={v => setDraft(d => ({...d, kickoff: v}))} />
-        <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">
-          <Plus className="size-4" /> Lägg till match
-        </button>
-      </form>
 
-      <div className="space-y-2">
-        <h2 className="font-display text-xl text-accent">Matcher ({matches.length})</h2>
-        {grouped.map(([group, groupMatches]) => (
-          <section key={group} className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setOpenGroups(current => ({ ...current, [group]: !current[group] }))}
-              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left transition hover:bg-card"
+        <TabsContent value="overview" className="space-y-4">
+          <section className="grid gap-3 md:grid-cols-2">
+            <AdminPanel
+              title="Nästa resultat att fylla i"
+              icon={<CalendarClock className="size-4" />}
             >
-              <span className="font-display text-lg text-accent">Grupp {group}</span>
-              <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {groupMatches.length} matcher
-                <ChevronDown className={`size-4 transition-transform ${openGroups[group] ? "rotate-180" : ""}`} />
-              </span>
-            </button>
-            {openGroups[group] && (
               <div className="space-y-2">
-                {groupMatches.map(m => <AdminMatchRow key={m.id} match={m} onChange={load} />)}
+                {matches
+                  .filter((match) => match.home_score === null || match.away_score === null)
+                  .slice(0, 5)
+                  .map((match) => (
+                    <CompactMatch key={match.id} match={match} />
+                  ))}
+                {matches.length === finishedMatches && (
+                  <EmptyState text="Alla matcher som finns upplagda är resultatförda." />
+                )}
               </div>
-            )}
+            </AdminPanel>
+
+            <AdminPanel title="Sidospel att rätta" icon={<Target className="size-4" />}>
+              <div className="space-y-2">
+                {sideBets
+                  .filter((sideBet) => sideBet.correct_answer === null)
+                  .slice(0, 5)
+                  .map((sideBet) => (
+                    <CompactSideBet key={sideBet.id} sideBet={sideBet} />
+                  ))}
+                {openSideBets === 0 && <EmptyState text="Alla sidospel är rättade." />}
+              </div>
+            </AdminPanel>
           </section>
-        ))}
+        </TabsContent>
+
+        <TabsContent value="matches" className="space-y-4">
+          <AdminPanel title="Lägg till match" icon={<Plus className="size-4" />}>
+            <form onSubmit={addMatch} className="grid gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  label="Grupp"
+                  value={draft.group_name}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      group_name: value.toUpperCase().slice(0, 2),
+                    }))
+                  }
+                />
+                <Input
+                  label="Hemma"
+                  value={draft.home_team}
+                  onChange={(value) => setDraft((current) => ({ ...current, home_team: value }))}
+                  className="col-span-2"
+                />
+              </div>
+              <Input
+                label="Borta"
+                value={draft.away_team}
+                onChange={(value) => setDraft((current) => ({ ...current, away_team: value }))}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  label="Stad"
+                  value={draft.city}
+                  onChange={(value) => setDraft((current) => ({ ...current, city: value }))}
+                  required={false}
+                />
+                <Input
+                  label="Stadium"
+                  value={draft.stadium}
+                  onChange={(value) => setDraft((current) => ({ ...current, stadium: value }))}
+                  required={false}
+                />
+              </div>
+              <Input
+                label="Avspark"
+                type="datetime-local"
+                value={draft.kickoff}
+                onChange={(value) => setDraft((current) => ({ ...current, kickoff: value }))}
+              />
+              <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                <Plus className="size-4" /> Lägg till match
+              </button>
+            </form>
+          </AdminPanel>
+
+          <section className="space-y-2">
+            <SectionTitle title={`Matcher (${matches.length})`} />
+            {grouped.map(([group, groupMatches]) => (
+              <section key={group} className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenGroups((current) => ({ ...current, [group]: !current[group] }))
+                  }
+                  className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left transition hover:bg-card"
+                >
+                  <span className="font-display text-lg text-accent">Grupp {group}</span>
+                  <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    {groupMatches.length} matcher
+                    <ChevronDown
+                      className={`size-4 transition-transform ${openGroups[group] ? "rotate-180" : ""}`}
+                    />
+                  </span>
+                </button>
+                {openGroups[group] && (
+                  <div className="space-y-2">
+                    {groupMatches.map((match) => (
+                      <AdminMatchRow key={match.id} match={match} onChange={loadMatches} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </section>
+        </TabsContent>
+
+        <TabsContent value="sidebets" className="space-y-4">
+          <AdminPanel title="Lägg till sidospel" icon={<Plus className="size-4" />}>
+            <form onSubmit={addSideBet} className="grid gap-2">
+              <Input
+                label="Fråga"
+                value={sideBetDraft.question}
+                onChange={(value) =>
+                  setSideBetDraft((current) => ({ ...current, question: value }))
+                }
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  label="Poäng"
+                  type="number"
+                  value={sideBetDraft.points}
+                  onChange={(value) =>
+                    setSideBetDraft((current) => ({ ...current, points: value }))
+                  }
+                />
+                <Input
+                  label="Deadline"
+                  type="datetime-local"
+                  value={sideBetDraft.deadline}
+                  onChange={(value) =>
+                    setSideBetDraft((current) => ({ ...current, deadline: value }))
+                  }
+                />
+              </div>
+              <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                <Plus className="size-4" /> Lägg till sidospel
+              </button>
+            </form>
+          </AdminPanel>
+
+          <section className="space-y-2">
+            <SectionTitle title={`Sidospel (${sideBets.length})`} />
+            {sideBets.map((sideBet) => (
+              <AdminSideBetRow key={sideBet.id} sideBet={sideBet} onChange={loadSideBets} />
+            ))}
+            {sideBets.length === 0 && <EmptyState text="Inga sidospel upplagda ännu." />}
+          </section>
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-4">
+          <AdminPanel title="Prispott" icon={<CircleDollarSign className="size-4" />}>
+            <form onSubmit={saveEntryFee} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <Input
+                label="Inträde per person"
+                type="number"
+                value={entryFee}
+                onChange={setEntryFee}
+              />
+              <button className="flex h-10 items-center justify-center gap-1.5 self-end rounded-lg bg-secondary px-4 text-sm font-semibold">
+                <Save className="size-3.5" /> Spara
+              </button>
+            </form>
+            <div className="mt-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm">
+              <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Automatisk prispott
+              </div>
+              <div className="font-display text-2xl text-accent">{computedPrizePot} kr</div>
+              <div className="text-xs text-muted-foreground">
+                {paidCount} betalda x {fee} kr
+              </div>
+            </div>
+          </AdminPanel>
+
+          <AdminPanel title="Deltagare" icon={<Users className="size-4" />}>
+            <div className="mb-3 flex justify-end">
+              <div className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
+                {paidCount}/{participants.length} betalda
+              </div>
+            </div>
+            <div className="space-y-2">
+              {participants.map((participant) => (
+                <div
+                  key={participant.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{participant.username}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {participant.is_paid ? "Betald" : "Ej betald"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => togglePaid(participant)}
+                    className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold ${
+                      participant.is_paid
+                        ? "bg-secondary text-foreground"
+                        : "bg-primary text-primary-foreground"
+                    }`}
+                  >
+                    {participant.is_paid ? "Obetald" : "Betald"}
+                  </button>
+                </div>
+              ))}
+              {participants.length === 0 && <EmptyState text="Inga deltagare ännu." />}
+            </div>
+          </AdminPanel>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  text,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/60 p-3">
+      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-accent">{icon}</span>
+        {label}
       </div>
+      <div className="mt-1 font-display text-2xl leading-none text-accent">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{text}</div>
+    </div>
+  );
+}
 
-      <div className="space-y-3">
-        <h2 className="font-display text-xl text-accent">Sidospel ({sideBets.length})</h2>
-        <form onSubmit={addSideBet} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-4">
-          <Input label="Fråga" value={sideBetDraft.question} onChange={v => setSideBetDraft(d => ({ ...d, question: v }))} />
-          <div className="grid grid-cols-2 gap-2">
-            <Input label="Poäng" type="number" value={sideBetDraft.points} onChange={v => setSideBetDraft(d => ({ ...d, points: v }))} />
-            <Input label="Deadline" type="datetime-local" value={sideBetDraft.deadline} onChange={v => setSideBetDraft(d => ({ ...d, deadline: v }))} />
-          </div>
-          <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary py-2.5 font-semibold text-primary-foreground">
-            <Plus className="size-4" /> Lägg till sidospel
-          </button>
-        </form>
+function AdminPanel({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border/60 bg-card/60 p-4">
+      <h2 className="mb-3 flex items-center gap-2 font-display text-xl text-accent">
+        {icon}
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
 
-        <div className="space-y-2">
-          {sideBets.map(sideBet => (
-            <AdminSideBetRow key={sideBet.id} sideBet={sideBet} onChange={loadSideBets} />
-          ))}
-        </div>
+function SectionTitle({ title }: { title: string }) {
+  return <h2 className="font-display text-xl text-accent">{title}</h2>;
+}
+
+function CompactMatch({ match }: { match: Match }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/35 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span>Grupp {match.group_name}</span>
+        <span>{formatDateTime(match.kickoff)}</span>
+      </div>
+      <div className="mt-1 font-semibold">
+        {match.home_team} - {match.away_team}
+      </div>
+    </div>
+  );
+}
+
+function CompactSideBet({ sideBet }: { sideBet: SideBet }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/35 px-3 py-2 text-sm">
+      <div className="font-semibold">{sideBet.question}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {sideBet.points}p · stänger {formatDateTime(sideBet.deadline)}
       </div>
     </div>
   );
 }
 
 function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void }) {
-  const [h, setH] = useState(match.home_score?.toString() ?? "");
-  const [a, setA] = useState(match.away_score?.toString() ?? "");
+  const [homeScore, setHomeScore] = useState(match.home_score?.toString() ?? "");
+  const [awayScore, setAwayScore] = useState(match.away_score?.toString() ?? "");
   const [city, setCity] = useState(match.city ?? "");
   const [stadium, setStadium] = useState(match.stadium ?? "");
 
   useEffect(() => {
-    setH(match.home_score?.toString() ?? "");
-    setA(match.away_score?.toString() ?? "");
+    setHomeScore(match.home_score?.toString() ?? "");
+    setAwayScore(match.away_score?.toString() ?? "");
     setCity(match.city ?? "");
     setStadium(match.stadium ?? "");
   }, [match]);
 
   const save = async () => {
-    const hs = h === "" ? null : parseInt(h);
-    const as = a === "" ? null : parseInt(a);
+    const parsedHome = homeScore === "" ? null : parseInt(homeScore, 10);
+    const parsedAway = awayScore === "" ? null : parseInt(awayScore, 10);
+    if (
+      (parsedHome !== null && !Number.isFinite(parsedHome)) ||
+      (parsedAway !== null && !Number.isFinite(parsedAway))
+    ) {
+      toast.error("Resultatet måste vara siffror");
+      return;
+    }
+
     const { error } = await supabase
       .from("matches")
       .update({
-        home_score: hs,
-        away_score: as,
+        home_score: parsedHome,
+        away_score: parsedAway,
         city: city.trim() || null,
         stadium: stadium.trim() || null,
       })
       .eq("id", match.id);
+
     if (error) toast.error(error.message);
     else {
       toast.success("Match sparad");
@@ -360,37 +654,54 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
   };
 
   const del = async () => {
-    if (!confirm("Ta bort matchen?")) return;
+    if (!confirm("Ta bort matchen? Alla tips på matchen tas också bort.")) return;
     const { error } = await supabase.from("matches").delete().eq("id", match.id);
     if (error) toast.error(error.message);
-    else { toast.success("Borttagen"); onChange(); }
+    else {
+      toast.success("Match borttagen");
+      onChange();
+    }
   };
 
-  const kickoff = new Date(match.kickoff);
   return (
     <div className="rounded-xl border border-border/60 bg-card/60 p-3">
-      <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
-        <span>Grupp {match.group_name} · {kickoff.toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}</span>
-        <button onClick={del} className="text-destructive"><Trash2 className="size-4" /></button>
+      <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span className="truncate">
+          Grupp {match.group_name} · {formatDateTime(match.kickoff)}
+        </span>
+        <button
+          type="button"
+          title="Ta bort match"
+          onClick={del}
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+        </button>
       </div>
-      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="text-right font-semibold">
+
+      <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div className="min-w-0 text-right font-semibold">
           <TeamWithFlag team={match.home_team} align="right" />
         </div>
         <div className="flex items-center gap-1">
-          <input value={h} onChange={e => setH(e.target.value)} type="number" min={0} max={20} placeholder="-" className="h-10 w-12 rounded-md border border-border bg-input text-center font-bold" />
-          <span>–</span>
-          <input value={a} onChange={e => setA(e.target.value)} type="number" min={0} max={20} placeholder="-" className="h-10 w-12 rounded-md border border-border bg-input text-center font-bold" />
+          <ScoreInput value={homeScore} onChange={setHomeScore} />
+          <span className="text-muted-foreground">-</span>
+          <ScoreInput value={awayScore} onChange={setAwayScore} />
         </div>
-        <div className="font-semibold">
+        <div className="min-w-0 font-semibold">
           <TeamWithFlag team={match.away_team} />
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <Input label="Stad" value={city} onChange={setCity} />
-        <Input label="Stadium" value={stadium} onChange={setStadium} />
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Input label="Stad" value={city} onChange={setCity} required={false} />
+        <Input label="Stadium" value={stadium} onChange={setStadium} required={false} />
       </div>
-      <button onClick={save} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
+      <button
+        type="button"
+        onClick={save}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-2 text-sm font-semibold"
+      >
         <Save className="size-3.5" /> Spara match
       </button>
     </div>
@@ -399,7 +710,6 @@ function AdminMatchRow({ match, onChange }: { match: Match; onChange: () => void
 
 function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: () => void }) {
   const [correct, setCorrect] = useState(sideBet.correct_answer ?? "");
-  const db = supabase as any;
 
   useEffect(() => {
     setCorrect(sideBet.correct_answer ?? "");
@@ -408,8 +718,9 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
   const saveCorrect = async () => {
     const { error } = await db
       .from("side_bets")
-      .update({ correct_answer: correct || null })
+      .update({ correct_answer: correct.trim() || null })
       .eq("id", sideBet.id);
+
     if (error) toast.error(error.message);
     else {
       toast.success("Rätt svar sparat");
@@ -418,7 +729,7 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
   };
 
   const del = async () => {
-    if (!confirm("Ta bort sidospel?")) return;
+    if (!confirm("Ta bort sidospel? Alla svar på frågan tas också bort.")) return;
     const { error } = await db.from("side_bets").delete().eq("id", sideBet.id);
     if (error) toast.error(error.message);
     else {
@@ -430,43 +741,110 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
   return (
     <div className="rounded-xl border border-border/60 bg-card/60 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="font-semibold">{sideBet.question}</div>
           <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-            {sideBet.points}p · Stänger {new Date(sideBet.deadline).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
+            {sideBet.points}p · stänger {formatDateTime(sideBet.deadline)}
           </div>
         </div>
-        <button onClick={del} className="text-destructive"><Trash2 className="size-4" /></button>
+        <div className="flex items-center gap-2">
+          {sideBet.correct_answer ? (
+            <CheckCircle2 className="size-4 text-accent" />
+          ) : (
+            <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Öppen
+            </span>
+          )}
+          <button
+            type="button"
+            title="Ta bort sidospel"
+            onClick={del}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="mt-3 grid gap-2">
-        <label className="block">
-          <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rätt svar</span>
-          <input
-            value={correct}
-            onChange={e => setCorrect(e.target.value)}
-            placeholder="Skriv rätt svar"
-            className="w-full rounded-lg border border-border bg-input px-3 py-2 outline-none focus:border-accent"
-          />
-        </label>
-        <button onClick={saveCorrect} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-secondary py-1.5 text-sm">
-          <Save className="size-3.5" /> Spara rätt svar
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <Input
+          label="Rätt svar"
+          value={correct}
+          onChange={setCorrect}
+          placeholder="Skriv rätt svar"
+          required={false}
+        />
+        <button
+          type="button"
+          onClick={saveCorrect}
+          className="flex h-10 items-center justify-center gap-1.5 self-end rounded-lg bg-secondary px-4 text-sm font-semibold"
+        >
+          <Save className="size-3.5" /> Spara
         </button>
       </div>
     </div>
   );
 }
 
-function Input({ label, value, onChange, type = "text", className = "" }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; className?: string;
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+  className = "",
+  placeholder,
+  required = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  className?: string;
+  placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
       <input
-        type={type} value={value} onChange={e => onChange(e.target.value)} required
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
         className="w-full rounded-lg border border-border bg-input px-3 py-2 outline-none focus:border-accent"
       />
     </label>
   );
+}
+
+function ScoreInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      type="number"
+      min={0}
+      max={30}
+      placeholder="-"
+      className="h-10 w-12 rounded-md border border-border bg-input text-center font-bold outline-none focus:border-accent"
+    />
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+      {text}
+    </div>
+  );
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("sv-SE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }

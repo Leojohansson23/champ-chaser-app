@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SidebetsRouteImport } from './routes/sidebets'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as MatchesRouteImport } from './routes/matches'
+import { Route as LeaguesRouteImport } from './routes/leagues'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GroupsRouteImport } from './routes/groups'
 import { Route as EntryRouteImport } from './routes/entry'
@@ -33,6 +34,11 @@ const RulesRoute = RulesRouteImport.update({
 const MatchesRoute = MatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaguesRoute = LeaguesRouteImport.update({
+  id: '/leagues',
+  path: '/leagues',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/leagues': typeof LeaguesRoute
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/leagues': typeof LeaguesRoute
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/entry': typeof EntryRoute
   '/groups': typeof GroupsRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/leagues': typeof LeaguesRoute
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/entry'
     | '/groups'
     | '/leaderboard'
+    | '/leagues'
     | '/matches'
     | '/rules'
     | '/sidebets'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/entry'
     | '/groups'
     | '/leaderboard'
+    | '/leagues'
     | '/matches'
     | '/rules'
     | '/sidebets'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/entry'
     | '/groups'
     | '/leaderboard'
+    | '/leagues'
     | '/matches'
     | '/rules'
     | '/sidebets'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   EntryRoute: typeof EntryRoute
   GroupsRoute: typeof GroupsRoute
   LeaderboardRoute: typeof LeaderboardRoute
+  LeaguesRoute: typeof LeaguesRoute
   MatchesRoute: typeof MatchesRoute
   RulesRoute: typeof RulesRoute
   SidebetsRoute: typeof SidebetsRoute
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/matches'
       fullPath: '/matches'
       preLoaderRoute: typeof MatchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leagues': {
+      id: '/leagues'
+      path: '/leagues'
+      fullPath: '/leagues'
+      preLoaderRoute: typeof LeaguesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leaderboard': {
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   EntryRoute: EntryRoute,
   GroupsRoute: GroupsRoute,
   LeaderboardRoute: LeaderboardRoute,
+  LeaguesRoute: LeaguesRoute,
   MatchesRoute: MatchesRoute,
   RulesRoute: RulesRoute,
   SidebetsRoute: SidebetsRoute,
