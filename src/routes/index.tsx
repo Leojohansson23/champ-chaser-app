@@ -5,7 +5,7 @@ import { RequireCompletedEntry, useEntryCompletion } from "@/lib/entry-completio
 import { supabase } from "@/integrations/supabase/client";
 import { TeamWithFlag } from "../lib/flags";
 import { toast } from "sonner";
-import { CalendarDays, ChevronRight, MessageCircle, Send, Trash2, Trophy } from "lucide-react";
+import { CalendarDays, ChevronRight, MessageCircle, Send, Trash2, Trophy, Users } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -300,14 +300,11 @@ function TodayMatchCard({ match }: { match: Match }) {
     <Link
       to="/matches/$matchId"
       params={{ matchId: match.id }}
-      className="block rounded-xl border border-border/60 bg-card/60 p-3 transition hover:border-accent/60 hover:bg-card active:scale-[0.99]"
+      className="group block rounded-xl border border-border/60 bg-card/60 p-3 transition hover:border-accent/70 hover:bg-card active:scale-[0.99]"
     >
       <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-muted-foreground">
         <span>Grupp {match.group_name}</span>
-        <span className="flex items-center gap-1">
-          {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
-          <ChevronRight className="size-3.5" />
-        </span>
+        <span>Matchstart - {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
       <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <div className="truncate text-right font-semibold">
@@ -319,6 +316,13 @@ function TodayMatchCard({ match }: { match: Match }) {
         <div className="truncate font-semibold">
           <TeamWithFlag team={match.away_team} />
         </div>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent transition group-hover:border-accent/45 group-hover:bg-accent/15">
+          <Users className="size-3" />
+          Visa tips
+          <ChevronRight className="size-3" />
+        </span>
       </div>
     </Link>
   );
