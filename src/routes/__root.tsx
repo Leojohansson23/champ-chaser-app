@@ -114,7 +114,7 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={user ? "/" : "/auth"} className="flex items-center gap-2">
           <Trophy className="size-6 text-accent" />
           <span className="font-display text-2xl tracking-wider">VM-TIPSET</span>
         </Link>

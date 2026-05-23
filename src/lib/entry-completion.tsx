@@ -108,7 +108,12 @@ export function RequireCompletedEntry({ children }: { children: React.ReactNode 
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (authLoading || completion.loading || !user || completion.isComplete) return;
+    if (authLoading) return;
+    if (!user) {
+      navigate({ to: "/auth", replace: true });
+      return;
+    }
+    if (completion.loading || completion.isComplete) return;
     navigate({ to: completion.nextRequiredPath, replace: true });
   }, [authLoading, completion.isComplete, completion.loading, completion.nextRequiredPath, navigate, user]);
 
