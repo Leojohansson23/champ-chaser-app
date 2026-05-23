@@ -91,4 +91,4 @@ set city = v.city,
 from match_venues v
 where m.home_team = v.home_team
   and m.away_team = v.away_team
-  and m.kickoff = v.kickoff;
+  and m.kickoff at time zone 'Europe/Stockholm' = v.kickoff at time zone 'Europe/Stockholm';
