@@ -318,9 +318,13 @@ function HomePage() {
                         index + 1
                       )}
                     </div>
-                    <div className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    <Link
+                      to="/users/$userId"
+                      params={{ userId: row.user_id }}
+                      className="min-w-0 flex-1 truncate text-sm font-semibold hover:text-accent"
+                    >
                       {row.username}
-                    </div>
+                    </Link>
                     <div className="font-display text-lg leading-none text-accent">
                       {row.total_points}
                     </div>

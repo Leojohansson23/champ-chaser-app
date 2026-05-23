@@ -3,6 +3,7 @@ type TeamWithFlagProps = {
   align?: "left" | "right";
   className?: string;
   flagClassName?: string;
+  textClassName?: string;
 };
 
 const TEAM_TO_ISO: Record<string, string> = {
@@ -66,6 +67,7 @@ export function TeamWithFlag({
   align = "left",
   className = "",
   flagClassName = "h-4 w-6",
+  textClassName = "whitespace-nowrap",
 }: TeamWithFlagProps) {
   const flagUrl = getFlagUrl(team);
   const rightAligned = align === "right";
@@ -84,7 +86,7 @@ export function TeamWithFlag({
           className={`shrink-0 rounded-[2px] border border-border/60 object-cover ${flagClassName}`}
         />
       )}
-      <span className="whitespace-nowrap">{team}</span>
+      <span className={textClassName}>{team}</span>
     </span>
   );
 }

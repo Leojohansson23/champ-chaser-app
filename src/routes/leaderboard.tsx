@@ -1,9 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { RequireCompletedEntry } from "@/lib/entry-completion";
 import { Trophy, Medal, Award, Coins } from "lucide-react";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const Route = createFileRoute("/leaderboard")({
   component: () => (
@@ -49,7 +51,13 @@ function LeaderboardPage() {
   }, [loading, user, navigate]);
 
   const load = async () => {
-    const [{ data: leaderboard }, { data: predictions }, { data: sideBetAnswers }, { data: entryFeeSetting }, { data: profiles }] = await Promise.all([
+    const [
+      { data: leaderboard },
+      { data: predictions },
+      { data: sideBetAnswers },
+      { data: entryFeeSetting },
+      { data: profiles },
+    ] = await Promise.all([
       supabase.from("leaderboard").select("*"),
       supabase
         .from("predictions")
@@ -59,22 +67,24 @@ function LeaderboardPage() {
       (supabase as any).from("profiles").select("id, is_paid"),
     ]);
     const fee = Number(entryFeeSetting?.value?.amount ?? 100);
-    const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter((profile) => profile.is_paid).length;
+    const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter(
+      (profile) => profile.is_paid,
+    ).length;
     setEntryFee(fee);
     setPaidCount(paid);
     setPrizePot(fee * paid);
     const stats = buildPredictionStats((predictions ?? []) as unknown as PredictionWithMatch[]);
     const sideBetStats = buildSideBetStats((sideBetAnswers ?? []) as SideBetAnswer[]);
-    const sorted = ((leaderboard ?? []) as Row[]).map(row => ({
-      ...row,
-      total_points: (stats[row.user_id]?.points ?? 0) + (sideBetStats[row.user_id]?.points ?? 0),
-      exact_count: stats[row.user_id]?.exact ?? 0,
-      sign_count: stats[row.user_id]?.sign ?? 0,
-      side_bet_count: sideBetStats[row.user_id]?.count ?? 0,
-      side_bet_points: sideBetStats[row.user_id]?.points ?? 0,
-    })).sort((a, b) =>
-      b.total_points - a.total_points || b.exact_count - a.exact_count
-    );
+    const sorted = ((leaderboard ?? []) as Row[])
+      .map((row) => ({
+        ...row,
+        total_points: (stats[row.user_id]?.points ?? 0) + (sideBetStats[row.user_id]?.points ?? 0),
+        exact_count: stats[row.user_id]?.exact ?? 0,
+        sign_count: stats[row.user_id]?.sign ?? 0,
+        side_bet_count: sideBetStats[row.user_id]?.count ?? 0,
+        side_bet_points: sideBetStats[row.user_id]?.points ?? 0,
+      }))
+      .sort((a, b) => b.total_points - a.total_points || b.exact_count - a.exact_count);
     setRows(sorted);
   };
 
@@ -88,7 +98,11 @@ function LeaderboardPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings", filter: "key=eq.entry_fee" }, load)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "app_settings", filter: "key=eq.entry_fee" },
+        load,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
       .subscribe();
     return () => {
@@ -134,20 +148,34 @@ function LeaderboardPage() {
               }`}
             >
               <div className="flex size-10 items-center justify-center rounded-full bg-secondary font-display text-lg">
-                {i === 0 ? <Trophy className="size-5 text-accent" />
-                : i === 1 ? <Medal className="size-5 text-muted-foreground" />
-                : i === 2 ? <Award className="size-5 text-accent/70" />
-                : <span className="text-muted-foreground">{i + 1}</span>}
+                {i === 0 ? (
+                  <Trophy className="size-5 text-accent" />
+                ) : i === 1 ? (
+                  <Medal className="size-5 text-muted-foreground" />
+                ) : i === 2 ? (
+                  <Award className="size-5 text-accent/70" />
+                ) : (
+                  <span className="text-muted-foreground">{i + 1}</span>
+                )}
               </div>
               <div className="flex-1">
-                <div className="font-semibold">{r.username}</div>
+                <Link
+                  to="/users/$userId"
+                  params={{ userId: r.user_id }}
+                  className="font-semibold hover:text-accent"
+                >
+                  {r.username}
+                </Link>
                 <div className="text-xs text-muted-foreground">
-                  {r.sign_count} Rätt 1X2 (1p) · {r.exact_count} Rätt resultat (2p) · {r.side_bet_count ?? 0} Rätt sidospel ({r.side_bet_points ?? 0}p)
+                  {r.sign_count} Rätt 1X2 (1p) · {r.exact_count} Rätt resultat (2p) ·{" "}
+                  {r.side_bet_count ?? 0} Rätt sidospel ({r.side_bet_points ?? 0}p)
                 </div>
               </div>
               <div className="text-right">
                 <div className="font-display text-2xl text-accent">{r.total_points}</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">poäng</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  poäng
+                </div>
               </div>
             </li>
           ))}
