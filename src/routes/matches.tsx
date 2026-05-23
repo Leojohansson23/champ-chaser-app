@@ -32,13 +32,14 @@ type Prediction = {
   points: number;
 };
 
+const MATCH_PREDICTION_DEADLINE = new Date("2026-06-10T23:59:00+02:00");
+
 export function MatchesPage() {
   const { user, loading } = useAuth();
   const completion = useEntryCompletion();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [preds, setPreds] = useState<Record<string, Prediction>>({});
-  const [lockTime, setLockTime] = useState<Date | null>(null);
   const [now, setNow] = useState(new Date());
   const [fetched, setFetched] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -61,7 +62,6 @@ export function MatchesPage() {
       ]);
       const ms = (m ?? []) as Match[];
       setMatches(ms);
-      setLockTime(ms.length ? new Date(ms[0].kickoff) : null);
       const map: Record<string, Prediction> = {};
       (p ?? []).forEach((x: any) => { map[x.match_id] = x; });
       setPreds(map);
@@ -69,7 +69,7 @@ export function MatchesPage() {
     })();
   }, [user]);
 
-  const locked = !!(lockTime && now >= lockTime);
+  const locked = now >= MATCH_PREDICTION_DEADLINE;
   const grouped = useMemo(() => {
     const g: Record<string, Match[]> = {};
     matches.forEach(m => { (g[m.group_name] ??= []).push(m); });
@@ -94,11 +94,11 @@ export function MatchesPage() {
           {locked ? "Tipsen är låsta" : "Tipsa innan turneringen startar"}
         </div>
         <h1 className="mt-1 font-display text-3xl">Gruppspelet</h1>
-        {lockTime && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {locked ? "Avspark har gått — lycka till!" : <>Lås: <Countdown to={lockTime} now={now} /></>}
-          </p>
-        )}
+        <p className="mt-1 text-sm text-muted-foreground">
+          {locked
+            ? "Deadline har passerat — lycka till!"
+            : <>Lås: 10 juni 23:59 · <Countdown to={MATCH_PREDICTION_DEADLINE} now={now} /></>}
+        </p>
       </section>
 
       {!completion.loading && !completion.isComplete && (
@@ -223,17 +223,20 @@ function MatchCard({ match, pred, locked, onSave }: {
         </div>
       </div>
 
-      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-        <div className="min-w-0 text-right text-sm font-semibold leading-tight">
-          <TeamWithFlag team={match.home_team} align="right" />
-        </div>
-        <div className="flex items-center gap-1">
-          <ScoreInput value={home} onChange={setHome} disabled={matchLocked} />
-          <span className="text-muted-foreground">–</span>
-          <ScoreInput value={away} onChange={setAway} disabled={matchLocked} />
-        </div>
-        <div className="min-w-0 text-sm font-semibold leading-tight">
-          <TeamWithFlag team={match.away_team} />
+      <div className="mt-2 rounded-lg border border-border/40 bg-background/25 p-2">
+        <div className="grid gap-1.5">
+          <TeamPredictionRow
+            team={match.home_team}
+            value={home}
+            onChange={setHome}
+            disabled={matchLocked}
+          />
+          <TeamPredictionRow
+            team={match.away_team}
+            value={away}
+            onChange={setAway}
+            disabled={matchLocked}
+          />
         </div>
       </div>
 
@@ -268,6 +271,27 @@ function MatchCard({ match, pred, locked, onSave }: {
   );
 }
 
+function TeamPredictionRow({
+  team,
+  value,
+  onChange,
+  disabled,
+}: {
+  team: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="min-w-0 text-sm font-semibold leading-tight">
+        <TeamWithFlag team={team} flagClassName="h-3.5 w-5" />
+      </div>
+      <ScoreInput value={value} onChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
 function ScoreInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled: boolean }) {
   return (
     <input
@@ -278,7 +302,7 @@ function ScoreInput({ value, onChange, disabled }: { value: string; onChange: (v
       value={value}
       onChange={e => onChange(e.target.value)}
       disabled={disabled}
-      className="h-9 w-10 rounded-md border border-border bg-input text-center text-base font-bold tabular-nums text-foreground outline-none focus:border-accent disabled:opacity-60"
+      className="h-8 w-8 rounded-md border border-border bg-input text-center text-sm font-bold tabular-nums text-foreground outline-none focus:border-accent disabled:opacity-60"
       placeholder="–"
     />
   );

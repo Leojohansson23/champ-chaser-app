@@ -92,10 +92,22 @@ function GroupsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] text-sm">
+                <table className="w-full min-w-[560px] table-fixed text-sm">
+                  <colgroup>
+                    <col className="w-8" />
+                    <col />
+                    <col className="w-8" />
+                    <col className="w-8" />
+                    <col className="w-8" />
+                    <col className="w-8" />
+                    <col className="w-10" />
+                    <col className="w-10" />
+                    <col className="w-10" />
+                    <col className="w-9" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-border/60 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      <th className="w-8 py-2 text-left">#</th>
+                      <th className="py-2 text-left">#</th>
                       <th className="py-2 text-left">Lag</th>
                       <th className="py-2 text-center">S</th>
                       <th className="py-2 text-center">V</th>
@@ -111,7 +123,7 @@ function GroupsPage() {
                     {rows.map((row, index) => (
                       <tr key={row.team} className="border-b border-border/30 last:border-0">
                         <td className="py-2 text-muted-foreground">{index + 1}</td>
-                        <td className="py-2 font-semibold">
+                        <td className="py-2 pr-2 font-semibold">
                           <TeamWithFlag team={row.team} />
                         </td>
                         <td className="py-2 text-center text-muted-foreground">{row.played}</td>

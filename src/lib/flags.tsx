@@ -71,7 +71,11 @@ export function TeamWithFlag({
   const rightAligned = align === "right";
 
   return (
-    <span className={`inline-flex min-w-0 items-center gap-2 ${rightAligned ? "flex-row-reverse justify-end" : ""} ${className}`}>
+    <span
+      className={`flex min-w-0 max-w-full items-center gap-2 ${
+        rightAligned ? "flex-row-reverse justify-start" : ""
+      } ${className}`}
+    >
       {flagUrl && (
         <img
           src={flagUrl}
@@ -80,7 +84,7 @@ export function TeamWithFlag({
           className={`shrink-0 rounded-[2px] border border-border/60 object-cover ${flagClassName}`}
         />
       )}
-      <span className="truncate">{team}</span>
+      <span className="whitespace-nowrap">{team}</span>
     </span>
   );
 }
