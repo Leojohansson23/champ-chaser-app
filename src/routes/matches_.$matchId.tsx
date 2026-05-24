@@ -187,15 +187,24 @@ function MatchDetailPage() {
             {venue}
           </div>
         )}
-        <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div className="min-w-0 text-right font-display text-4xl leading-none">
-            <TeamWithFlag team={match.home_team} align="right" flagClassName="h-6 w-9" />
+        <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2.5 sm:gap-3">
+          <div className="min-w-0 text-right font-display text-3xl leading-none sm:text-4xl">
+            <TeamWithFlag
+              team={match.home_team}
+              align="right"
+              flagClassName="h-5 w-8 sm:h-6 sm:w-9"
+              textClassName="min-w-0 whitespace-normal break-words"
+            />
           </div>
-          <div className="rounded-xl border border-border/60 bg-background/60 px-4 py-2 font-display text-4xl leading-none text-accent">
+          <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2 font-display text-3xl leading-none text-accent sm:px-4 sm:text-4xl">
             {hasResult ? `${match.home_score}-${match.away_score}` : "vs"}
           </div>
-          <div className="min-w-0 font-display text-4xl leading-none">
-            <TeamWithFlag team={match.away_team} flagClassName="h-6 w-9" />
+          <div className="min-w-0 font-display text-3xl leading-none sm:text-4xl">
+            <TeamWithFlag
+              team={match.away_team}
+              flagClassName="h-5 w-8 sm:h-6 sm:w-9"
+              textClassName="min-w-0 whitespace-normal break-words"
+            />
           </div>
         </div>
       </section>
