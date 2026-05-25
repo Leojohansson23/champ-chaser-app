@@ -18,6 +18,8 @@ type Match = {
   kickoff: string;
   home_score: number | null;
   away_score: number | null;
+  city: string | null;
+  stadium: string | null;
 };
 
 type Prediction = {
@@ -98,7 +100,9 @@ function UserPredictionsPage() {
       ] = await Promise.all([
         supabase
           .from("matches")
-          .select("id, group_name, home_team, away_team, kickoff, home_score, away_score")
+          .select(
+            "id, group_name, home_team, away_team, kickoff, home_score, away_score, city, stadium",
+          )
           .order("kickoff"),
         supabase
           .from("predictions")
@@ -320,6 +324,7 @@ function SelectedMatchDetails({ match }: { match: CalendarMatch }) {
   const prediction = match.prediction;
   const hasResult = match.home_score !== null && match.away_score !== null;
   const status = getStatusMeta(match);
+  const venue = [match.city, match.stadium].filter(Boolean).join(" · ");
 
   return (
     <section className={`rounded-2xl border bg-card/60 p-4 ${status.card}`}>
@@ -334,28 +339,34 @@ function SelectedMatchDetails({ match }: { match: CalendarMatch }) {
           })}
         </span>
       </div>
+      {venue && (
+        <div className="mt-2 truncate text-center text-xs font-medium text-muted-foreground">
+          {venue}
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <div className="min-w-0 text-right text-sm font-semibold">
           <TeamWithFlag team={match.home_team} align="right" />
         </div>
-        <div className="rounded-xl border border-border/60 bg-background/60 px-4 py-2 font-display text-3xl leading-none text-accent">
-          {prediction ? `${prediction.predicted_home}-${prediction.predicted_away}` : "-"}
+        <div className="rounded-xl border border-border/60 bg-background/60 px-4 py-2 text-center">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Slutresultat
+          </div>
+          <div className="font-display text-3xl leading-none text-foreground">
+            {hasResult ? `${match.home_score}-${match.away_score}` : "-"}
+          </div>
         </div>
         <div className="min-w-0 text-sm font-semibold">
           <TeamWithFlag team={match.away_team} />
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-center">
         <DetailStat
           label="Tips"
           value={prediction ? `${prediction.predicted_home}-${prediction.predicted_away}` : "-"}
         />
         <DetailStat label="Poäng" value={prediction ? `${prediction.points}p` : "-"} />
-        <DetailStat
-          label="Slutresultat"
-          value={hasResult ? `${match.home_score}-${match.away_score}` : "-"}
-        />
       </div>
 
       <div
