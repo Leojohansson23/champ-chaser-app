@@ -25,8 +25,9 @@ function RulesPage() {
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Regler & info</p>
         <h1 className="mt-1 font-display text-3xl">Så fungerar VM-tipset</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Alla tippar samma matcher och sidospel. Poängen räknas globalt, och privata ligor visar
-          egna topplistor för kompisar, familj eller jobb.
+          Alla tippar samma matcher och sidospel. Poängen räknas ihop sammanlagt från matcher och
+          sidospel. Privata ligor visar endast egengjorda topplistor med vänner/familj och har
+          inget med prispotten att göra.
         </p>
       </section>
 
@@ -40,6 +41,10 @@ function RulesPage() {
           <li>2. Fyll i alla sidospel som finns upplagda.</li>
           <li>3. När allt är ifyllt låses resten av appen upp.</li>
           <li>4. Följ poängen i Topplista eller skapa en privat liga under Ligor.</li>
+          <li>
+            5. På startsidan kan du klicka in på dagens matcher/föregående matcher och se vad andra
+            har tippat.
+          </li>
         </ol>
       </section>
 
@@ -62,6 +67,7 @@ function RulesPage() {
             "Sidospelen stänger samtidigt som matchtipset.",
             "Rätt sidospel räknas in i totalpoängen.",
             "När rätt svar är satt visas facit och poäng.",
+            "Sidospel ger olika antal poäng.",
           ]}
         />
         <InfoCard
@@ -70,7 +76,7 @@ function RulesPage() {
           items={[
             "Matchtips låses 10 juni 2026 kl. 23:59 svensk tid.",
             "Sidospel låses vid samma tid.",
-            "En match som redan fått resultat kan inte tippas om.",
+            "Du kan uppdatera och ändra resultat och svar på sidospel fram tills deadlinen.",
             "Efter deadline går svaret inte att ändra.",
           ]}
         />
@@ -78,10 +84,9 @@ function RulesPage() {
           icon={<Trophy className="size-4" />}
           title="Topplistor"
           items={[
-            "Den globala topplistan visar alla deltagare.",
-            "Privata ligor visar bara medlemmarna i ligan.",
-            "Går du med i en liga senare tar du med dina befintliga poäng.",
-            "Privata ligor påverkar inte den globala tävlingen.",
+            "Topplistan visar alla deltagare samt deras poäng.",
+            "Här kan man klicka in på andra deltagare och se deras tippning efter att deadlinen har stängt.",
+            "Man kan även följa och se andras poäng man plockat på alla matcher samt sidospel.",
           ]}
         />
         <InfoCard
@@ -99,9 +104,8 @@ function RulesPage() {
           title="Prispott"
           items={[
             "Prispotten hör till huvudtävlingen.",
-            "Den räknas på antal betalda deltagare gånger avgiften.",
-            "Privata ligor har ingen egen prispott i appen.",
-            "Om prispotten inte stämmer kan en betalning sakna markering.",
+            "Alla deltagares insatser går direkt till vinstpotten och delas ut till topp 3.",
+            "Privata ligor har ingen egen prispott.",
           ]}
         />
       </section>
@@ -125,7 +129,7 @@ function RulesPage() {
           <NavHint
             icon={<Trophy className="size-4" />}
             title="Topplista"
-            text="Här visas den globala ställningen."
+            text="Här visas alla deltagare samt deras poäng."
           />
           <NavHint
             icon={<Users className="size-4" />}
