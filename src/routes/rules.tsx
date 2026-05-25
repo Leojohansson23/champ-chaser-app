@@ -115,6 +115,7 @@ function RulesPage() {
           items={[
             "Prispotten hör till huvudtävlingen.",
             "Alla deltagares insatser går direkt till vinstpotten och delas ut till topp 3.",
+            "1:a plats får 60% av potten, 2:a får 25%, och 3:e får 15%.",
             "Privata ligor har ingen egen prispott.",
           ]}
         />

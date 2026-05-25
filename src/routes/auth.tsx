@@ -16,6 +16,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { if (user) navigate({ to: "/" }); }, [user, navigate]);
@@ -24,15 +25,23 @@ function AuthPage() {
     e.preventDefault();
     setBusy(true);
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email, password,
         options: {
           emailRedirectTo: window.location.origin,
-          data: { username: username || email.split("@")[0] },
+          data: {
+            username: username || email.split("@")[0],
+            registration_code: registrationCode.trim(),
+          },
         },
       });
-      if (error) toast.error(error.message);
-      else toast.success("Konto skapat! Kontrollera din e-post om bekräftelse krävs.");
+      if (error) {
+        toast.error(error.message);
+      } else if (data?.session) {
+        toast.success("Konto skapat! Du är nu inloggad.");
+      } else {
+        toast.success("Konto skapat! Kontrollera din e-post om bekräftelse krävs.");
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) toast.error(error.message);
@@ -50,13 +59,26 @@ function AuthPage() {
 
       <form onSubmit={submit} className="space-y-3 rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
         {mode === "signup" && (
-          <Field label="Användarnamn">
-            <input
-              value={username} onChange={e => setUsername(e.target.value)}
-              required minLength={2} maxLength={20}
-              className="w-full rounded-lg border border-border bg-input px-3 py-2.5 outline-none focus:border-accent"
-            />
-          </Field>
+          <>
+            <Field label="Användarnamn">
+              <input
+                value={username} onChange={e => setUsername(e.target.value)}
+                required minLength={2} maxLength={20}
+                className="w-full rounded-lg border border-border bg-input px-3 py-2.5 outline-none focus:border-accent"
+              />
+            </Field>
+            <Field label="Registreringskod">
+              <input
+                value={registrationCode}
+                onChange={e => setRegistrationCode(e.target.value)}
+                required
+                minLength={4}
+                maxLength={64}
+                autoComplete="off"
+                className="w-full rounded-lg border border-border bg-input px-3 py-2.5 outline-none focus:border-accent"
+              />
+            </Field>
+          </>
         )}
         <Field label="E-post">
           <input
