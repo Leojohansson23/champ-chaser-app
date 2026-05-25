@@ -172,7 +172,7 @@ function SideBetCard({ bet, answer, saving, onAnswer }: {
   }, [answer?.answer]);
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur">
+    <div className={`rounded-2xl border p-4 backdrop-blur ${getSideBetCardStyle(bet, answer)}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-semibold">{bet.question}</div>
@@ -215,7 +215,7 @@ function SideBetCard({ bet, answer, saving, onAnswer }: {
             onChange={e => setTextAnswer(e.target.value)}
             disabled={locked || saving}
             placeholder="Skriv ditt svar"
-            className="min-w-0 flex-1 rounded-lg border border-border bg-input px-3 py-2 outline-none focus:border-accent disabled:opacity-70"
+            className={`min-w-0 flex-1 rounded-lg border px-3 py-2 outline-none focus:border-accent disabled:opacity-100 ${getTextAnswerStyle(bet, answer)}`}
           />
           {!locked && (
             <button
@@ -238,6 +238,20 @@ function SideBetCard({ bet, answer, saving, onAnswer }: {
       )}
     </div>
   );
+}
+
+function getSideBetCardStyle(bet: SideBet, answer?: SideBetAnswer) {
+  if (bet.correct_answer === null || !answer) return "border-border/60 bg-card/60";
+  if (answer.points > 0) {
+    return "border-green-500/45 bg-green-500/10 shadow-[inset_2px_0_0_rgba(34,197,94,0.85)]";
+  }
+  return "border-red-500/40 bg-red-500/10 shadow-[inset_2px_0_0_rgba(239,68,68,0.85)]";
+}
+
+function getTextAnswerStyle(bet: SideBet, answer?: SideBetAnswer) {
+  if (bet.correct_answer === null || !answer) return "border-border bg-input disabled:opacity-70";
+  if (answer.points > 0) return "border-green-500/45 bg-green-500/15 text-green-200";
+  return "border-red-500/45 bg-red-500/15 text-red-200";
 }
 
 function isLocked(bet: SideBet) {

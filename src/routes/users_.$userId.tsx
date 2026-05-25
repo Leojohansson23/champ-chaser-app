@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarDays, Lock } from "lucide-react";
+import { CalendarDays, ListChecks, Lock, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { TeamWithFlag } from "@/lib/flags";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/users_/$userId")({
   component: UserPredictionsPage,
@@ -30,6 +31,25 @@ type CalendarMatch = Match & {
   prediction?: Prediction;
 };
 
+type SideBet = {
+  id: string;
+  question: string;
+  options: string[];
+  points: number;
+  deadline: string;
+  correct_answer: string | null;
+};
+
+type SideBetAnswer = {
+  side_bet_id: string;
+  answer: string;
+  points: number;
+};
+
+type DisplaySideBet = SideBet & {
+  answer?: SideBetAnswer;
+};
+
 type Profile = {
   id: string;
   username: string;
@@ -43,8 +63,10 @@ function UserPredictionsPage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [matches, setMatches] = useState<CalendarMatch[]>([]);
+  const [sideBets, setSideBets] = useState<DisplaySideBet[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
+  const db = supabase as any;
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -68,7 +90,12 @@ function UserPredictionsPage() {
         return;
       }
 
-      const [{ data: matchRows }, { data: predictionRows }] = await Promise.all([
+      const [
+        { data: matchRows },
+        { data: predictionRows },
+        { data: sideBetRows },
+        { data: answerRows },
+      ] = await Promise.all([
         supabase
           .from("matches")
           .select("id, group_name, home_team, away_team, kickoff, home_score, away_score")
@@ -77,6 +104,11 @@ function UserPredictionsPage() {
           .from("predictions")
           .select("match_id, predicted_home, predicted_away, points")
           .eq("user_id", userId),
+        db
+          .from("side_bets")
+          .select("id, question, options, points, deadline, correct_answer")
+          .order("deadline"),
+        db.from("side_bet_answers").select("side_bet_id, answer, points").eq("user_id", userId),
       ]);
 
       const predictionsByMatch = new Map(
@@ -85,20 +117,32 @@ function UserPredictionsPage() {
           prediction,
         ]),
       );
+      const answersByBet = new Map(
+        ((answerRows ?? []) as SideBetAnswer[]).map((answer) => [answer.side_bet_id, answer]),
+      );
       const nextMatches = ((matchRows ?? []) as Match[]).map((match) => ({
         ...match,
         prediction: predictionsByMatch.get(match.id),
       }));
 
       setMatches(nextMatches);
+      setSideBets(
+        ((sideBetRows ?? []) as SideBet[]).map((bet) => ({
+          ...bet,
+          answer: answersByBet.get(bet.id),
+        })),
+      );
       setSelectedMatchId((current) => current ?? nextMatches[0]?.id ?? null);
       setFetched(true);
     })();
-  }, [canView, user, userId]);
+  }, [canView, db, user, userId]);
 
   const selectedMatch = matches.find((match) => match.id === selectedMatchId) ?? null;
-  const totalPoints = matches.reduce((sum, match) => sum + (match.prediction?.points ?? 0), 0);
+  const matchPoints = matches.reduce((sum, match) => sum + (match.prediction?.points ?? 0), 0);
+  const sideBetPoints = sideBets.reduce((sum, bet) => sum + (bet.answer?.points ?? 0), 0);
+  const totalPoints = matchPoints + sideBetPoints;
   const predictionCount = matches.filter((match) => match.prediction).length;
+  const sideBetAnswerCount = sideBets.filter((bet) => bet.answer).length;
 
   if (loading || !user) return null;
 
@@ -139,35 +183,52 @@ function UserPredictionsPage() {
           </div>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Matchruta 1 är tidigaste matchen, sedan fortsätter schemat i spelordning.
+          {predictionCount} matchtips och {sideBetAnswerCount} sidospel registrerade.
         </p>
       </section>
 
-      {selectedMatch && <SelectedMatchDetails match={selectedMatch} />}
+      <Tabs defaultValue="matches" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2">
+          <TabsTrigger value="matches" className="gap-1.5">
+            <ListChecks className="size-4" /> Matcher
+          </TabsTrigger>
+          <TabsTrigger value="sidebets" className="gap-1.5">
+            <Target className="size-4" /> Sidospel
+          </TabsTrigger>
+        </TabsList>
 
-      {fetched && matches.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Inga matcher att visa.
-        </div>
-      ) : (
-        <section className="rounded-2xl border border-border/60 bg-card/60 p-3">
-          <h2 className="mb-3 flex items-center gap-2 px-1 font-display text-xl text-accent">
-            <CalendarDays className="size-5" />
-            Matchkalender
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
-            {matches.map((match, index) => (
-              <MatchCalendarTile
-                key={match.id}
-                match={match}
-                number={index + 1}
-                selected={selectedMatchId === match.id}
-                onSelect={setSelectedMatchId}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+        <TabsContent value="matches" className="mt-0 space-y-5">
+          {selectedMatch && <SelectedMatchDetails match={selectedMatch} />}
+
+          {fetched && matches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Inga matcher att visa.
+            </div>
+          ) : (
+            <section className="rounded-2xl border border-border/60 bg-card/60 p-3">
+              <h2 className="mb-3 flex items-center gap-2 px-1 font-display text-xl text-accent">
+                <CalendarDays className="size-5" />
+                Matchkalender
+              </h2>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                {matches.map((match, index) => (
+                  <MatchCalendarTile
+                    key={match.id}
+                    match={match}
+                    number={index + 1}
+                    selected={selectedMatchId === match.id}
+                    onSelect={setSelectedMatchId}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </TabsContent>
+
+        <TabsContent value="sidebets" className="mt-0">
+          <UserSideBets sideBets={sideBets} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -306,23 +367,83 @@ function SelectedMatchDetails({ match }: { match: CalendarMatch }) {
   );
 }
 
-function DetailStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-background/45 px-2 py-2">
-      <div className="truncate text-[9px] uppercase tracking-wider text-muted-foreground">
-        {label}
+function UserSideBets({ sideBets }: { sideBets: DisplaySideBet[] }) {
+  if (sideBets.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        Inga sidospel att visa.
       </div>
-      <div className="mt-1 font-display text-xl leading-none text-foreground">{value}</div>
-    </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-border/60 bg-card/60 p-3">
+      <h2 className="mb-3 flex items-center gap-2 px-1 font-display text-xl text-accent">
+        <Target className="size-5" />
+        Sidospel
+      </h2>
+      <div className="space-y-2">
+        {sideBets.map((bet, index) => (
+          <SideBetResultCard key={bet.id} bet={bet} number={index + 1} />
+        ))}
+      </div>
+    </section>
   );
 }
 
-function getMatchTone(match: CalendarMatch) {
-  if (!match.prediction) return "bg-muted text-muted-foreground";
-  if (match.prediction.points === 3) return "bg-green-500";
-  if (match.prediction.points === 1) return "bg-yellow-400";
-  if (match.home_score === null || match.away_score === null) return "bg-secondary text-foreground";
-  return "bg-red-500";
+function SideBetResultCard({ bet, number }: { bet: DisplaySideBet; number: number }) {
+  const resolved = bet.correct_answer !== null;
+  const answer = bet.answer;
+  const status = getSideBetStatus(bet);
+
+  return (
+    <article className={`rounded-xl border bg-background/35 p-3 ${status.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Sidospel {number}
+          </div>
+          <h3 className="mt-1 font-display text-xl leading-tight">{bet.question}</h3>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {bet.points} bonuspoäng · Stänger {formatDeadline(bet.deadline)}
+          </div>
+        </div>
+        <div className={`shrink-0 rounded-md px-2.5 py-1 font-display text-lg ${status.badge}`}>
+          {answer ? `${answer.points}p` : "-"}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <DetailStat className={status.answerStat} label="Svar" value={answer?.answer ?? "-"} />
+        <DetailStat label="Rätt svar" value={resolved ? (bet.correct_answer ?? "-") : "-"} />
+      </div>
+
+      <div className={`mt-3 rounded-lg px-3 py-2 text-center text-xs font-semibold ${status.note}`}>
+        {status.label}
+      </div>
+    </article>
+  );
+}
+
+function DetailStat({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg border border-border/60 bg-background/45 px-2 py-2 ${className}`}>
+      <div className="truncate text-[9px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 break-words font-display text-xl leading-none text-foreground">
+        {value}
+      </div>
+    </div>
+  );
 }
 
 function getTileStyle(match: CalendarMatch) {
@@ -391,4 +512,48 @@ function getStatusMeta(match: CalendarMatch) {
     card: "border-red-500/40 shadow-[inset_2px_0_0_rgba(239,68,68,0.85)]",
     badge: "bg-red-500/15 text-red-300",
   };
+}
+
+function getSideBetStatus(bet: DisplaySideBet) {
+  if (!bet.answer) {
+    return {
+      label: "Inget svar sparat",
+      card: "border-border/60",
+      badge: "bg-secondary text-muted-foreground",
+      note: "bg-secondary text-muted-foreground",
+      answerStat: "",
+    };
+  }
+
+  if (bet.correct_answer === null) {
+    return {
+      label: "Väntar på rätt svar",
+      card: "border-border/60",
+      badge: "bg-secondary text-muted-foreground",
+      note: "bg-secondary text-muted-foreground",
+      answerStat: "",
+    };
+  }
+
+  if (bet.answer.points > 0) {
+    return {
+      label: "Rätt sidospel",
+      card: "border-green-500/45 shadow-[inset_2px_0_0_rgba(34,197,94,0.85)]",
+      badge: "bg-green-500 text-white",
+      note: "bg-green-500/15 text-green-300",
+      answerStat: "border-green-500/45 bg-green-500/15 text-green-200",
+    };
+  }
+
+  return {
+    label: "Fel sidospel",
+    card: "border-red-500/40 shadow-[inset_2px_0_0_rgba(239,68,68,0.85)]",
+    badge: "bg-red-500 text-white",
+    note: "bg-red-500/15 text-red-300",
+    answerStat: "border-red-500/45 bg-red-500/15 text-red-200",
+  };
+}
+
+function formatDeadline(deadline: string) {
+  return new Date(deadline).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
 }
