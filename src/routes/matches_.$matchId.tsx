@@ -67,7 +67,7 @@ function MatchDetailPage() {
     const currentMatch = (matchRow ?? null) as Match | null;
     setMatch(currentMatch);
 
-    if (!currentMatch || !isToday(currentMatch.kickoff)) {
+    if (!currentMatch || !isTodayOrPast(currentMatch.kickoff)) {
       setPredictions([]);
       setFetched(true);
       return;
@@ -126,8 +126,9 @@ function MatchDetailPage() {
   }, [load, matchId, user]);
 
   const hasResult = match?.home_score !== null && match?.away_score !== null;
-  const canView = !!match && isToday(match.kickoff);
+  const canView = !!match && isTodayOrPast(match.kickoff);
   const kickoff = useMemo(() => (match ? new Date(match.kickoff) : null), [match]);
+  const isPastMatch = match ? isBeforeToday(match.kickoff) : false;
   const venue = match ? [match.city, match.stadium].filter(Boolean).join(" · ") : "";
   const currentUserId = user?.id ?? "";
   const ownPrediction = predictions.find((prediction) => prediction.user_id === currentUserId);
@@ -153,8 +154,8 @@ function MatchDetailPage() {
   if (!canView) {
     return (
       <UnavailableMatch
-        title="Bara dagens matcher"
-        body="Du kan bara klicka dig in och se andras tips för matcher som spelas idag."
+        title="Matchen är inte öppen än"
+        body="Du kan se andras tips för dagens matcher och matcher som redan har spelats."
       />
     );
   }
@@ -170,7 +171,7 @@ function MatchDetailPage() {
 
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
         <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span>Dagens match · Grupp {match.group_name}</span>
+          <span>{isPastMatch ? "Föregående match" : "Dagens match"} · Grupp {match.group_name}</span>
           <span className="flex items-center gap-1.5">
             <CalendarDays className="size-3.5" />
             {kickoff?.toLocaleString("sv-SE", {
@@ -395,12 +396,17 @@ function getResultStyle(points: number) {
   };
 }
 
-function isToday(value: string) {
+function isTodayOrPast(value: string) {
   const date = new Date(value);
   const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
+  const tomorrow = new Date(now);
+  tomorrow.setHours(24, 0, 0, 0);
+  return date < tomorrow;
+}
+
+function isBeforeToday(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
 }

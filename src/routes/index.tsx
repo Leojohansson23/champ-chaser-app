@@ -89,6 +89,8 @@ function HomePage() {
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [previousOpen, setPreviousOpen] = useState(false);
+  const [previousDayIndex, setPreviousDayIndex] = useState(0);
   const displayName =
     user?.user_metadata?.username ??
     user?.user_metadata?.name ??
@@ -182,6 +184,32 @@ function HomePage() {
       );
     });
   }, [matches]);
+
+  const previousMatches = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return matches
+      .filter((match) => new Date(match.kickoff) < startOfToday)
+      .sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
+  }, [matches]);
+
+  const previousMatchDays = useMemo(() => {
+    const days = new Map<string, Match[]>();
+    previousMatches.forEach((match) => {
+      const key = formatDateKey(match.kickoff);
+      days.set(key, [...(days.get(key) ?? []), match]);
+    });
+    return Array.from(days.entries()).map(([dateKey, dayMatches]) => ({
+      dateKey,
+      matches: dayMatches,
+    }));
+  }, [previousMatches]);
+
+  useEffect(() => {
+    setPreviousDayIndex((index) => Math.min(index, Math.max(0, previousMatchDays.length - 1)));
+  }, [previousMatchDays.length]);
+
+  const selectedPreviousDay = previousMatchDays[previousDayIndex] ?? null;
 
   if (loading || !user) return null;
 
@@ -314,6 +342,86 @@ function HomePage() {
               ))}
             </div>
           )}
+
+          <section className="pt-3">
+            <button
+              type="button"
+              onClick={() => setPreviousOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/45 px-3 py-2.5 text-left transition hover:bg-card"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Clock3 className="size-5 shrink-0 text-accent" />
+                <span className="min-w-0">
+                  <span className="block font-display text-xl leading-none text-accent">
+                    Föregående matcher
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {previousMatches.length} matcher
+                  </span>
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {previousOpen ? "Stäng" : "Öppna"}
+                <ChevronDown
+                  className={`size-4 transition-transform ${previousOpen ? "rotate-180" : ""}`}
+                />
+              </span>
+            </button>
+
+            {previousOpen && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviousDayIndex((index) =>
+                        Math.min(index + 1, previousMatchDays.length - 1),
+                      )
+                    }
+                    disabled={previousDayIndex >= previousMatchDays.length - 1}
+                    className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-secondary disabled:opacity-40"
+                  >
+                    Föregående dag
+                  </button>
+                  <div className="min-w-0 text-center">
+                    <div className="font-display text-lg leading-none text-accent">
+                      {selectedPreviousDay
+                        ? formatPreviousDayLabel(selectedPreviousDay.dateKey)
+                        : "Inga matcher"}
+                    </div>
+                    <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {selectedPreviousDay?.matches.length ?? 0} matcher
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviousDayIndex((index) => Math.max(index - 1, 0))}
+                    disabled={previousDayIndex <= 0}
+                    className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-secondary disabled:opacity-40"
+                  >
+                    Nästa dag
+                  </button>
+                </div>
+                <div className="flex justify-end">
+                  <Link
+                    to="/tips"
+                    className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Alla matcher
+                  </Link>
+                </div>
+                {previousMatches.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    Inga föregående matcher än.
+                  </div>
+                ) : (
+                  selectedPreviousDay?.matches.map((match) => (
+                    <TodayMatchCard key={match.id} match={match} variant="previous" />
+                  ))
+                )}
+              </div>
+            )}
+          </section>
         </section>
 
         {(completion.isComplete || isAdmin) && (
@@ -456,10 +564,17 @@ function HomePage() {
   );
 }
 
-function TodayMatchCard({ match }: { match: Match }) {
+function TodayMatchCard({
+  match,
+  variant = "today",
+}: {
+  match: Match;
+  variant?: "today" | "previous";
+}) {
   const kickoff = new Date(match.kickoff);
   const hasResult = match.home_score !== null && match.away_score !== null;
   const hasVenue = !!(match.city || match.stadium);
+  const showStartTime = variant === "today";
 
   return (
     <Link
@@ -469,9 +584,11 @@ function TodayMatchCard({ match }: { match: Match }) {
     >
       <div className="flex items-start justify-between gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span>Grupp {match.group_name}</span>
-        <span className="justify-self-end rounded-full border border-border/60 bg-background/45 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-          Matchstart {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
-        </span>
+        {showStartTime && (
+          <span className="justify-self-end rounded-full border border-border/60 bg-background/45 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
+            Matchstart {kickoff.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
       </div>
       {hasVenue && (
         <div className="mx-auto mt-1 max-w-[78%] text-center leading-tight">
@@ -545,6 +662,21 @@ function formatTime(value: string) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function formatDateKey(value: string) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function formatPreviousDayLabel(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString("sv-SE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
   });
 }
 
