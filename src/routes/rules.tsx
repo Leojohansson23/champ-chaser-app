@@ -24,12 +24,11 @@ function RulesPage() {
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Regler & info</p>
         <div className="mt-3 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-foreground/90">
-          <div className="flex items-start gap-3">
-            <Banknote className="mt-0.5 size-4 shrink-0 text-accent" />
+          <div className="flex items-start">
             <div>
-              <p className="font-semibold">Privat vänskapstipp</p>
+              <p className="font-semibold">Vänskapstipp</p>
               <p className="mt-0.5 text-sm text-foreground/75">
-                100 kr/person, ingen avgift till arrangör och helt inofficiellt.
+                Alla pengarna går till potten, ingen avgift till arrangörerna
               </p>
             </div>
           </div>
