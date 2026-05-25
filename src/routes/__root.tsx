@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { useEntryCompletion } from "@/lib/entry-completion";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Banknote,
   Trophy,
   ListChecks,
   BarChart3,
@@ -142,6 +143,16 @@ function Header() {
   const { user } = useAuth();
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-2xl px-4 pt-3">
+        <div className="flex items-center justify-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground/85">
+          <Banknote className="size-3.5 shrink-0 text-amber-500 dark:text-amber-300" />
+          <span>Privat vänskapstipp</span>
+          <span className="text-foreground/35">•</span>
+          <span>100 kr/person</span>
+          <span className="text-foreground/35">•</span>
+          <span>inofficiellt</span>
+        </div>
+      </div>
       <div className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-3">
         <Link to={user ? "/" : "/auth"} className="flex items-center gap-2">
           <Trophy className="size-6 text-accent" />
