@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TipsRouteImport } from './routes/tips'
+import { Route as SidebetsLiveRouteImport } from './routes/sidebets-live'
 import { Route as SidebetsRouteImport } from './routes/sidebets'
 import { Route as RulesRouteImport } from './routes/rules'
 import { Route as MatchesRouteImport } from './routes/matches'
@@ -26,6 +27,11 @@ import { Route as MatchesMatchIdRouteImport } from './routes/matches_.$matchId'
 const TipsRoute = TipsRouteImport.update({
   id: '/tips',
   path: '/tips',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SidebetsLiveRoute = SidebetsLiveRouteImport.update({
+  id: '/sidebets-live',
+  path: '/sidebets-live',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SidebetsRoute = SidebetsRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/sidebets-live': typeof SidebetsLiveRoute
   '/tips': typeof TipsRoute
   '/matches/$matchId': typeof MatchesMatchIdRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/sidebets-live': typeof SidebetsLiveRoute
   '/tips': typeof TipsRoute
   '/matches/$matchId': typeof MatchesMatchIdRoute
   '/users/$userId': typeof UsersUserIdRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/matches': typeof MatchesRoute
   '/rules': typeof RulesRoute
   '/sidebets': typeof SidebetsRoute
+  '/sidebets-live': typeof SidebetsLiveRoute
   '/tips': typeof TipsRoute
   '/matches_/$matchId': typeof MatchesMatchIdRoute
   '/users_/$userId': typeof UsersUserIdRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/sidebets-live'
     | '/tips'
     | '/matches/$matchId'
     | '/users/$userId'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/sidebets-live'
     | '/tips'
     | '/matches/$matchId'
     | '/users/$userId'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/matches'
     | '/rules'
     | '/sidebets'
+    | '/sidebets-live'
     | '/tips'
     | '/matches_/$matchId'
     | '/users_/$userId'
@@ -194,6 +206,7 @@ export interface RootRouteChildren {
   MatchesRoute: typeof MatchesRoute
   RulesRoute: typeof RulesRoute
   SidebetsRoute: typeof SidebetsRoute
+  SidebetsLiveRoute: typeof SidebetsLiveRoute
   TipsRoute: typeof TipsRoute
   MatchesMatchIdRoute: typeof MatchesMatchIdRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
@@ -206,6 +219,13 @@ declare module '@tanstack/react-router' {
       path: '/tips'
       fullPath: '/tips'
       preLoaderRoute: typeof TipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sidebets-live': {
+      id: '/sidebets-live'
+      path: '/sidebets-live'
+      fullPath: '/sidebets-live'
+      preLoaderRoute: typeof SidebetsLiveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sidebets': {
@@ -306,6 +326,7 @@ const rootRouteChildren: RootRouteChildren = {
   MatchesRoute: MatchesRoute,
   RulesRoute: RulesRoute,
   SidebetsRoute: SidebetsRoute,
+  SidebetsLiveRoute: SidebetsLiveRoute,
   TipsRoute: TipsRoute,
   MatchesMatchIdRoute: MatchesMatchIdRoute,
   UsersUserIdRoute: UsersUserIdRoute,

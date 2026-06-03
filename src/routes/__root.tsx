@@ -15,6 +15,7 @@ import {
   Trophy,
   ListChecks,
   BarChart3,
+  Target,
   Shield,
   LogOut,
   Table2,
@@ -198,6 +199,9 @@ function BottomNav() {
         </Link>
         <Link to="/tips" className={item} activeProps={active}>
           <ListChecks className="size-5" /> Tips
+        </Link>
+        <Link to="/sidebets-live" className={item} activeProps={active}>
+          <Target className="size-5" /> Sidospel Live
         </Link>
         <Link to="/rules" className={item} activeProps={active}>
           <BookOpenText className="size-5" /> Regler/Info
