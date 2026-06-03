@@ -65,6 +65,7 @@ function RulesPage() {
           items={[
             "2 poäng för helt rätt resultat.",
             "1 poäng för rätt 1X2, alltså rätt vinnare eller oavgjort.",
+            "Maxpoäng är 3 poäng per match.",
             "0 poäng om utfallet är fel.",
             "Poängen uppdateras när slutresultatet är inlagt.",
           ]}
