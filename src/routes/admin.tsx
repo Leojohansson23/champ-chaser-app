@@ -11,6 +11,7 @@ import {
   EyeOff,
   ListChecks,
   Megaphone,
+  Pencil,
   Plus,
   Save,
   Shield,
@@ -18,6 +19,7 @@ import {
   Trash2,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,11 +71,42 @@ type AdminAnnouncement = {
   created_at: string;
 };
 
+type ManualEntryCategory = "top_scorers" | "top_assists" | "red_cards";
+
+type ManualEntry = {
+  id: string;
+  category: ManualEntryCategory;
+  label: string;
+  value: number;
+};
+
+const MANUAL_ENTRY_CATEGORIES: Array<{
+  category: ManualEntryCategory;
+  title: string;
+  valueLabel: string;
+}> = [
+  { category: "top_scorers", title: "Skytteliga", valueLabel: "mål" },
+  { category: "top_assists", title: "Assistliga", valueLabel: "assist" },
+  { category: "red_cards", title: "Röda kort totalt", valueLabel: "kort" },
+];
+
+function getManualRowsForCategory(rows: ManualEntry[], category: ManualEntryCategory) {
+  const filtered = rows.filter((entry) => entry.category === category);
+  if (category !== "red_cards") {
+    return filtered.sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, "sv-SE"));
+  }
+
+  if (filtered.length === 0) return [];
+  const total = filtered.reduce((sum, row) => sum + row.value, 0);
+  return [{ ...filtered[0], label: "Totalt", value: total }];
+}
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [sideBets, setSideBets] = useState<SideBet[]>([]);
+  const [manualEntries, setManualEntries] = useState<ManualEntry[]>([]);
+  const [manualEntriesAvailable, setManualEntriesAvailable] = useState(true);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [entryFee, setEntryFee] = useState("100");
@@ -96,6 +129,11 @@ function AdminPage() {
     body: "",
     is_active: true,
   });
+  const [manualDrafts, setManualDrafts] = useState<Record<ManualEntryCategory, { label: string; value: string }>>({
+    top_scorers: { label: "", value: "" },
+    top_assists: { label: "", value: "" },
+    red_cards: { label: "", value: "" },
+  });
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -117,6 +155,24 @@ function AdminPage() {
       return;
     }
     setSideBets((data ?? []) as SideBet[]);
+  }, []);
+
+  const loadManualEntries = useCallback(async () => {
+    const { data, error } = await db
+      .from("sidebet_live_manual_entries")
+      .select("id, category, label, value")
+      .order("value", { ascending: false });
+    if (error) {
+      if ((error as { code?: string }).code === "42P01") {
+        setManualEntriesAvailable(false);
+        setManualEntries([]);
+        return;
+      }
+      toast.error(error.message);
+      return;
+    }
+    setManualEntriesAvailable(true);
+    setManualEntries((data ?? []) as ManualEntry[]);
   }, []);
 
   const loadParticipants = useCallback(async () => {
@@ -159,10 +215,11 @@ function AdminPage() {
   const loadAll = useCallback(() => {
     loadMatches();
     loadSideBets();
+    loadManualEntries();
     loadParticipants();
     loadAnnouncements();
     loadEntryFee();
-  }, [loadAnnouncements, loadEntryFee, loadMatches, loadParticipants, loadSideBets]);
+  }, [loadAnnouncements, loadEntryFee, loadManualEntries, loadMatches, loadParticipants, loadSideBets]);
 
   useEffect(() => {
     if (user && isAdmin) loadAll();
@@ -336,6 +393,134 @@ function AdminPage() {
       toast.success(participant.is_paid ? "Markerad som obetald" : "Markerad som betald");
       loadParticipants();
     }
+  };
+
+  const setManualDraft = (
+    category: ManualEntryCategory,
+    patch: Partial<{ label: string; value: string }>,
+  ) => {
+    setManualDrafts((current) => ({
+      ...current,
+      [category]: {
+        ...current[category],
+        ...patch,
+      },
+    }));
+  };
+
+  const addManualEntry = async (category: ManualEntryCategory) => {
+    if (!manualEntriesAvailable) {
+      toast.error("Manuella tabeller saknas i databasen. Kör senaste migrationen först.");
+      return;
+    }
+    const draftValue = manualDrafts[category];
+    const label = category === "red_cards" ? "Totalt" : draftValue.label.trim();
+    const value = Number(draftValue.value);
+
+    if (!label) {
+      toast.error("Skriv ett namn");
+      return;
+    }
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Ange ett giltigt värde");
+      return;
+    }
+
+    const existingRows = manualEntries.filter((entry) => entry.category === category);
+    let error: { message: string } | null = null;
+
+    if (category === "red_cards" && existingRows.length > 0) {
+      const { error: updateError } = await db
+        .from("sidebet_live_manual_entries")
+        .update({ label, value: Math.round(value) })
+        .eq("id", existingRows[0].id);
+      error = updateError;
+
+      if (!updateError && existingRows.length > 1) {
+        const extras = existingRows.slice(1).map((entry) => entry.id);
+        await db.from("sidebet_live_manual_entries").delete().in("id", extras);
+      }
+    } else {
+      const { error: insertError } = await db.from("sidebet_live_manual_entries").insert({
+        category,
+        label,
+        value: Math.round(value),
+        created_by: user?.id ?? null,
+      });
+      error = insertError;
+    }
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setManualDraft(category, { label: "", value: "" });
+    toast.success("Rad tillagd");
+    loadManualEntries();
+  };
+
+  const removeManualEntry = async (entryId: string) => {
+    if (!manualEntriesAvailable) {
+      toast.error("Manuella tabeller saknas i databasen. Kör senaste migrationen först.");
+      return;
+    }
+    const entry = manualEntries.find((row) => row.id === entryId);
+
+    let error: { message: string } | null = null;
+    if (entry?.category === "red_cards") {
+      const { error: deleteError } = await db
+        .from("sidebet_live_manual_entries")
+        .delete()
+        .eq("category", "red_cards");
+      error = deleteError;
+    } else {
+      const { error: deleteError } = await db.from("sidebet_live_manual_entries").delete().eq("id", entryId);
+      error = deleteError;
+    }
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Rad borttagen");
+      loadManualEntries();
+    }
+  };
+
+  const updateManualEntry = async (entryId: string, label: string, value: number) => {
+    const entry = manualEntries.find((row) => row.id === entryId);
+    const isRedCards = entry?.category === "red_cards";
+    const normalizedLabel = isRedCards ? "Totalt" : label.trim();
+    if (!normalizedLabel) {
+      toast.error("Skriv ett namn");
+      return false;
+    }
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Ange ett giltigt värde");
+      return false;
+    }
+
+    const { error } = await db
+      .from("sidebet_live_manual_entries")
+      .update({ label: normalizedLabel, value: Math.round(value) })
+      .eq("id", entryId);
+
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+
+    if (isRedCards) {
+      const extras = manualEntries
+        .filter((row) => row.category === "red_cards" && row.id !== entryId)
+        .map((row) => row.id);
+      if (extras.length > 0) {
+        await db.from("sidebet_live_manual_entries").delete().in("id", extras);
+      }
+    }
+
+    toast.success("Rad uppdaterad");
+    loadManualEntries();
+    return true;
   };
 
   const paidCount = participants.filter((participant) => participant.is_paid).length;
@@ -589,6 +774,30 @@ function AdminPage() {
             ))}
             {sideBets.length === 0 && <EmptyState text="Inga sidospel upplagda ännu." />}
           </section>
+
+          <AdminPanel title="Manuella live-tabeller" icon={<Target className="size-4" />}>
+            {!manualEntriesAvailable && (
+              <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                Tabell saknas i databasen. Kör migrationen för `sidebet_live_manual_entries` först.
+              </div>
+            )}
+            <div className="space-y-3">
+              {MANUAL_ENTRY_CATEGORIES.map((config) => (
+                <AdminManualEntriesSection
+                  key={config.category}
+                  category={config.category}
+                  title={config.title}
+                  valueLabel={config.valueLabel}
+                  rows={getManualRowsForCategory(manualEntries, config.category)}
+                  draft={manualDrafts[config.category]}
+                  onDraftChange={(patch) => setManualDraft(config.category, patch)}
+                  onAdd={() => addManualEntry(config.category)}
+                  onUpdate={updateManualEntry}
+                  onDelete={removeManualEntry}
+                />
+              ))}
+            </div>
+          </AdminPanel>
         </TabsContent>
 
         <TabsContent value="announcements" className="space-y-4">
@@ -1031,6 +1240,176 @@ function AdminAnnouncementRow({
   );
 }
 
+function AdminManualEntriesSection({
+  category,
+  title,
+  valueLabel,
+  rows,
+  draft,
+  onDraftChange,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  category: ManualEntryCategory;
+  title: string;
+  valueLabel: string;
+  rows: ManualEntry[];
+  draft: { label: string; value: string };
+  onDraftChange: (patch: Partial<{ label: string; value: string }>) => void;
+  onAdd: () => void;
+  onUpdate: (entryId: string, label: string, value: number) => Promise<boolean>;
+  onDelete: (entryId: string) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editValue, setEditValue] = useState("");
+
+  const startEdit = (entry: ManualEntry) => {
+    setEditingId(entry.id);
+    setEditLabel(entry.label);
+    setEditValue(String(entry.value));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditLabel("");
+    setEditValue("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const ok = await onUpdate(editingId, editLabel, Number(editValue));
+    if (ok) cancelEdit();
+  };
+
+  return (
+    <section className="rounded-xl border border-border/60 bg-background/30 p-4">
+      <h3 className="font-display text-lg text-accent">{title}</h3>
+
+      <div className="mt-3 grid grid-cols-1 gap-2">
+        {category !== "red_cards" && (
+          <input
+            value={draft.label}
+            onChange={(event) => onDraftChange({ label: event.target.value })}
+            placeholder="Namn"
+            className="h-10 min-w-0 rounded-lg border border-border bg-input px-3 text-sm outline-none focus:border-accent"
+          />
+        )}
+        <input
+          value={draft.value}
+          onChange={(event) => onDraftChange({ value: event.target.value })}
+          placeholder="Antal"
+          type="number"
+          min={0}
+          className="h-10 min-w-0 rounded-lg border border-border bg-input px-3 text-sm outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground"
+        >
+          <Plus className="size-3.5" /> Lägg till
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+          Inga rader ännu.
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2.5">
+          {rows.map((entry, index) => (
+            <div
+              key={entry.id}
+              className="rounded-lg border border-border/60 bg-card/60 px-3 py-2.5"
+            >
+              {editingId === entry.id ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                    {category !== "red_cards" && (
+                      <input
+                        value={editLabel}
+                        onChange={(event) => setEditLabel(event.target.value)}
+                        placeholder="Namn"
+                        className="h-10 min-w-0 rounded-md border border-border bg-input px-2.5 text-sm outline-none focus:border-accent"
+                      />
+                    )}
+                    <input
+                      value={editValue}
+                      onChange={(event) => setEditValue(event.target.value)}
+                      type="number"
+                      min={0}
+                      placeholder="Antal"
+                      className="h-10 min-w-0 rounded-md border border-border bg-input px-2.5 text-sm outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      title="Spara rad"
+                      onClick={saveEdit}
+                      className="inline-flex items-center gap-1 rounded-md bg-secondary px-3 py-1.5 text-xs font-semibold"
+                    >
+                      <Save className="size-3.5" /> Spara
+                    </button>
+                    <button
+                      type="button"
+                      title="Avbryt"
+                      onClick={cancelEdit}
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3.5" /> Avbryt
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {category === "red_cards" ? (
+                      <div
+                        aria-hidden
+                        className="h-5 w-3 shrink-0 rounded-[2px] border border-red-700 bg-red-500"
+                      />
+                    ) : (
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-accent">
+                        {index + 1}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 break-words text-sm font-medium">
+                      {category === "red_cards" ? "Röda kort totalt:" : entry.label}
+                    </div>
+                    <div className="text-sm font-semibold text-accent">
+                      {entry.value} {valueLabel}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      title="Redigera rad"
+                      onClick={() => startEdit(entry)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-accent"
+                    >
+                      <Pencil className="size-3.5" /> Redigera
+                    </button>
+                    <button
+                      type="button"
+                      title="Ta bort rad"
+                      onClick={() => onDelete(entry.id)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="size-3.5" /> Ta bort
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 function Input({
   label,
   value,
