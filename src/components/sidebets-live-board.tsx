@@ -299,7 +299,7 @@ function ManualCategoryTable({
 
       {rows.length === 0 ? (
         <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-          Inga rader ännu. Lägg till från Admin-sidan.
+          Inga rader ännu.
         </div>
       ) : (
         <ol className="mt-3 space-y-1.5">
