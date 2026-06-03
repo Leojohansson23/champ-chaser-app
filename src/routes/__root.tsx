@@ -201,7 +201,7 @@ function BottomNav() {
           <ListChecks className="size-5" /> Tips
         </Link>
         <Link to="/sidebets-live" className={item} activeProps={active}>
-          <Target className="size-5" /> Sidospel Live
+          <Target className="size-5" /> Statistik
         </Link>
         <Link to="/rules" className={item} activeProps={active}>
           <BookOpenText className="size-5" /> Regler/Info
