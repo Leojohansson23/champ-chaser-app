@@ -13,7 +13,9 @@ import {
   Clock3,
   Coins,
   Medal,
+  Megaphone,
   MessageCircle,
+  Pin,
   Send,
   ShieldCheck,
   Target,
@@ -61,6 +63,14 @@ type CommentRow = {
   profiles: { username: string } | null;
 };
 
+type AdminAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  tone: "info" | "fun" | "urgent";
+  created_at: string;
+};
+
 type PredictionWithMatch = {
   user_id: string;
   predicted_home: number;
@@ -83,6 +93,7 @@ function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [comments, setComments] = useState<CommentRow[]>([]);
+  const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [prizePot, setPrizePot] = useState(0);
   const [entryFee, setEntryFee] = useState(0);
   const [paidCount, setPaidCount] = useState(0);
@@ -108,6 +119,7 @@ function HomePage() {
       { data: predictionRows },
       { data: sideBetAnswerRows },
       { data: commentRows },
+      { data: announcementRows },
       { data: entryFeeSetting },
       { data: profiles },
     ] = await Promise.all([
@@ -122,6 +134,12 @@ function HomePage() {
         .select("id, user_id, body, created_at, profiles(username)")
         .order("created_at", { ascending: false })
         .limit(20),
+      db
+        .from("admin_announcements")
+        .select("id, title, body, tone, created_at")
+        .eq("is_active", true)
+        .gte("created_at", getAnnouncementCutoff())
+        .order("created_at", { ascending: false }),
       db.from("app_settings").select("value").eq("key", "entry_fee").maybeSingle(),
       db.from("profiles").select("id, is_paid"),
     ]);
@@ -144,6 +162,7 @@ function HomePage() {
         .slice(0, 10),
     );
     setComments((commentRows ?? []) as CommentRow[]);
+    setAnnouncements((announcementRows ?? []) as AdminAnnouncement[]);
     const fee = Number(entryFeeSetting?.value?.amount ?? 100);
     const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter(
       (profile) => profile.is_paid,
@@ -164,6 +183,7 @@ function HomePage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "predictions" }, loadHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, loadHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, loadHome)
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_announcements" }, loadHome)
       .subscribe();
 
     return () => {
@@ -279,6 +299,8 @@ function HomePage() {
           </div>
         )}
       </section>
+
+      {announcements.length > 0 && <AdminAnnouncementsPanel announcements={announcements} />}
 
       <section className="rounded-2xl border border-border/60 bg-card/45 p-4 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
@@ -646,6 +668,134 @@ function HomeRuleItem({ icon, title, text }: { icon: ReactNode; title: string; t
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
     </div>
   );
+}
+
+function AdminAnnouncementsPanel({
+  announcements,
+}: {
+  announcements: AdminAnnouncement[];
+}) {
+  const [selectedAnnouncementId, setSelectedAnnouncementId] = useState(announcements[0]?.id ?? "");
+  const [previousOpen, setPreviousOpen] = useState(false);
+  const featured =
+    announcements.find((announcement) => announcement.id === selectedAnnouncementId) ??
+    announcements[0];
+  const visibleMiniAnnouncements = announcements
+    .filter((announcement) => announcement.id !== featured.id)
+    .slice(0, 3);
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-[oklch(0.72_0.13_235_/_0.48)] bg-card/60 shadow-md shadow-black/10 backdrop-blur">
+      <article className="relative p-3 sm:p-4">
+        <div className="absolute inset-x-0 top-0 h-px bg-[oklch(0.72_0.13_235_/_0.58)]" />
+        <div className="absolute right-3 top-3 rounded-full border border-border/50 bg-background/35 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {formatAnnouncementExpiry(featured.created_at)}
+        </div>
+        <div className="flex items-start gap-2.5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-accent/25 bg-accent/10 text-accent">
+            <Megaphone className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent">
+                Aktuellt
+              </span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                {formatTime(featured.created_at)}
+              </span>
+            </div>
+            <h2 className="mt-1.5 font-sans text-xl font-extrabold leading-tight text-foreground">
+              {featured.title}
+            </h2>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-snug text-foreground/90">
+              {featured.body}
+            </p>
+          </div>
+        </div>
+      </article>
+
+      {visibleMiniAnnouncements.length > 0 && (
+        <div className="border-t border-[oklch(0.68_0.12_235_/_0.18)] bg-background/20">
+          <button
+            type="button"
+            onClick={() => setPreviousOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition hover:bg-[oklch(0.68_0.12_235_/_0.08)]"
+          >
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Mer från admins
+            </span>
+            <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {visibleMiniAnnouncements.length} till
+              <ChevronDown
+                className={`size-3.5 text-[oklch(0.76_0.12_235)] transition-transform ${
+                  previousOpen ? "rotate-180" : ""
+                }`}
+              />
+            </span>
+          </button>
+
+          {previousOpen && (
+            <div className="grid gap-1.5 px-2.5 pb-2 sm:grid-cols-3">
+              {visibleMiniAnnouncements.map((announcement) => (
+                <AdminAnnouncementMini
+                  key={announcement.id}
+                  announcement={announcement}
+                  onSelect={() => {
+                    setSelectedAnnouncementId(announcement.id);
+                    setPreviousOpen(false);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AdminAnnouncementMini({
+  announcement,
+  onSelect,
+}: {
+  announcement: AdminAnnouncement;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group rounded-md border border-border/60 bg-card/45 px-2 py-1.5 text-left transition hover:border-accent/40 hover:bg-card/70 active:scale-[0.99]"
+    >
+      <div className="flex items-center gap-1.5">
+        <div className="flex size-[18px] shrink-0 items-center justify-center rounded border border-accent/20 bg-accent/10 text-accent/80">
+          <Pin className="size-2.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate font-sans text-[11px] font-bold leading-tight text-foreground group-hover:text-accent">
+              {announcement.title}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-[10px] leading-none text-muted-foreground">
+            {announcement.body}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function getAnnouncementCutoff() {
+  return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+}
+
+function formatAnnouncementExpiry(createdAt: string) {
+  const expiresAt = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+  const hoursLeft = Math.max(0, Math.ceil((expiresAt - Date.now()) / (60 * 60 * 1000)));
+
+  if (hoursLeft <= 0) return "Försvinner snart";
+  return `${hoursLeft} h kvar`;
 }
 
 function formatPrizePot(amount: number) {

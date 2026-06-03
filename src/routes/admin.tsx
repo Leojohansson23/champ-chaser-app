@@ -7,7 +7,10 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleDollarSign,
+  Eye,
+  EyeOff,
   ListChecks,
+  Megaphone,
   Plus,
   Save,
   Shield,
@@ -57,12 +60,22 @@ type Participant = {
   is_paid: boolean;
 };
 
+type AdminAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  tone: "info" | "fun" | "urgent";
+  is_active: boolean;
+  created_at: string;
+};
+
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [sideBets, setSideBets] = useState<SideBet[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
   const [entryFee, setEntryFee] = useState("100");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [draft, setDraft] = useState({
@@ -77,6 +90,11 @@ function AdminPage() {
     question: "",
     points: "3",
     deadline: "",
+  });
+  const [announcementDraft, setAnnouncementDraft] = useState({
+    title: "",
+    body: "",
+    is_active: true,
   });
 
   useEffect(() => {
@@ -113,6 +131,18 @@ function AdminPage() {
     setParticipants((data ?? []) as Participant[]);
   }, []);
 
+  const loadAnnouncements = useCallback(async () => {
+    const { data, error } = await db
+      .from("admin_announcements")
+      .select("id, title, body, tone, is_active, created_at")
+      .order("created_at", { ascending: false });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setAnnouncements((data ?? []) as AdminAnnouncement[]);
+  }, []);
+
   const loadEntryFee = useCallback(async () => {
     const { data, error } = await db
       .from("app_settings")
@@ -130,8 +160,9 @@ function AdminPage() {
     loadMatches();
     loadSideBets();
     loadParticipants();
+    loadAnnouncements();
     loadEntryFee();
-  }, [loadEntryFee, loadMatches, loadParticipants, loadSideBets]);
+  }, [loadAnnouncements, loadEntryFee, loadMatches, loadParticipants, loadSideBets]);
 
   useEffect(() => {
     if (user && isAdmin) loadAll();
@@ -242,6 +273,58 @@ function AdminPage() {
     }
   };
 
+  const addAnnouncement = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const title = announcementDraft.title.trim();
+    const body = announcementDraft.body.trim();
+    if (!title || !body) {
+      toast.error("Fyll i rubrik och meddelande");
+      return;
+    }
+    if (title.length > 80 || body.length > 600) {
+      toast.error("Rubrik max 80 tecken och meddelande max 600 tecken");
+      return;
+    }
+
+    const { error } = await db.from("admin_announcements").insert({
+      author_id: user.id,
+      title,
+      body,
+      tone: "info",
+      is_active: announcementDraft.is_active,
+    });
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Meddelande publicerat");
+      setAnnouncementDraft({ title: "", body: "", is_active: true });
+      loadAnnouncements();
+    }
+  };
+
+  const toggleAnnouncement = async (announcement: AdminAnnouncement) => {
+    const { error } = await db
+      .from("admin_announcements")
+      .update({ is_active: !announcement.is_active, updated_at: new Date().toISOString() })
+      .eq("id", announcement.id);
+
+    if (error) toast.error(error.message);
+    else {
+      toast.success(announcement.is_active ? "Meddelandet dolt" : "Meddelandet syns igen");
+      loadAnnouncements();
+    }
+  };
+
+  const deleteAnnouncement = async (announcement: AdminAnnouncement) => {
+    if (!confirm("Ta bort adminmeddelandet?")) return;
+    const { error } = await db.from("admin_announcements").delete().eq("id", announcement.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Meddelande borttaget");
+      loadAnnouncements();
+    }
+  };
+
   const togglePaid = async (participant: Participant) => {
     const { error } = await db
       .from("profiles")
@@ -264,6 +347,7 @@ function AdminPage() {
   );
   const overviewMatches = matchesAwaitingResult.slice(0, OVERVIEW_LIMIT);
   const openSideBets = sideBets.filter((sideBet) => sideBet.correct_answer === null).length;
+  const visibleAnnouncements = announcements.filter(isAnnouncementVisible).length;
   const fee = Math.max(0, Math.round(Number(entryFee) || 0));
   const computedPrizePot = fee * paidCount;
 
@@ -277,7 +361,7 @@ function AdminPage() {
         </p>
       </div>
 
-      <section className="grid gap-2 sm:grid-cols-2">
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           icon={<ListChecks className="size-4" />}
           label="Matcher"
@@ -302,6 +386,12 @@ function AdminPage() {
           value={`${computedPrizePot} kr`}
           text={`${paidCount} x ${fee} kr`}
         />
+        <StatCard
+          icon={<Megaphone className="size-4" />}
+          label="Meddelanden"
+          value={`${visibleAnnouncements}/${announcements.length}`}
+          text="synliga i 24h"
+        />
       </section>
 
       <Tabs defaultValue="overview" className="space-y-4">
@@ -315,6 +405,9 @@ function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="sidebets" className="gap-1.5">
               <Target className="size-4" /> Sidospel
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="gap-1.5">
+              <Megaphone className="size-4" /> Meddelanden
             </TabsTrigger>
             <TabsTrigger value="payments" className="gap-1.5">
               <Banknote className="size-4" /> Betalning
@@ -353,6 +446,20 @@ function AdminPage() {
                     <CompactSideBet key={sideBet.id} sideBet={sideBet} />
                   ))}
                 {openSideBets === 0 && <EmptyState text="Alla sidospel är rättade." />}
+              </div>
+            </AdminPanel>
+
+            <AdminPanel title="Synliga meddelanden" icon={<Megaphone className="size-4" />}>
+              <div className="space-y-2">
+                {announcements
+                  .filter(isAnnouncementVisible)
+                  .slice(0, 3)
+                  .map((announcement) => (
+                    <CompactAnnouncement key={announcement.id} announcement={announcement} />
+                  ))}
+                {visibleAnnouncements === 0 && (
+                  <EmptyState text="Inga adminmeddelanden visas just nu." />
+                )}
               </div>
             </AdminPanel>
           </section>
@@ -481,6 +588,61 @@ function AdminPage() {
               <AdminSideBetRow key={sideBet.id} sideBet={sideBet} onChange={loadSideBets} />
             ))}
             {sideBets.length === 0 && <EmptyState text="Inga sidospel upplagda ännu." />}
+          </section>
+        </TabsContent>
+
+        <TabsContent value="announcements" className="space-y-4">
+          <AdminPanel title="Nytt meddelande" icon={<Plus className="size-4" />}>
+            <form onSubmit={addAnnouncement} className="grid gap-3">
+              <Input
+                label="Rubrik"
+                value={announcementDraft.title}
+                onChange={(value) =>
+                  setAnnouncementDraft((current) => ({ ...current, title: value }))
+                }
+                placeholder="Ex. Viktig info inför deadline"
+              />
+              <Textarea
+                label="Meddelande"
+                value={announcementDraft.body}
+                onChange={(value) =>
+                  setAnnouncementDraft((current) => ({ ...current, body: value }))
+                }
+                placeholder="Skriv det alla ska se på startsidan"
+              />
+              <div className="flex justify-end">
+                <label className="flex h-10 items-center gap-2 rounded-lg border border-border bg-background/30 px-3 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={announcementDraft.is_active}
+                    onChange={(event) =>
+                      setAnnouncementDraft((current) => ({
+                        ...current,
+                        is_active: event.target.checked,
+                      }))
+                    }
+                    className="size-4 accent-primary"
+                  />
+                  Visa direkt
+                </label>
+              </div>
+              <button className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                <Megaphone className="size-4" /> Publicera meddelande
+              </button>
+            </form>
+          </AdminPanel>
+
+          <section className="space-y-2">
+            <SectionTitle title={`Meddelanden (${announcements.length})`} />
+            {announcements.map((announcement) => (
+              <AdminAnnouncementRow
+                key={announcement.id}
+                announcement={announcement}
+                onToggle={() => toggleAnnouncement(announcement)}
+                onDelete={() => deleteAnnouncement(announcement)}
+              />
+            ))}
+            {announcements.length === 0 && <EmptyState text="Inga adminmeddelanden ännu." />}
           </section>
         </TabsContent>
 
@@ -616,6 +778,24 @@ function CompactSideBet({ sideBet }: { sideBet: SideBet }) {
       <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         {sideBet.points}p · stänger {formatDateTime(sideBet.deadline)}
       </div>
+    </div>
+  );
+}
+
+function CompactAnnouncement({ announcement }: { announcement: AdminAnnouncement }) {
+  const visible = isAnnouncementVisible(announcement);
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/35 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 truncate font-semibold">{announcement.title}</div>
+        {!visible && (
+          <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Utgången
+          </span>
+        )}
+      </div>
+      <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{announcement.body}</div>
     </div>
   );
 }
@@ -794,6 +974,63 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
   );
 }
 
+function AdminAnnouncementRow({
+  announcement,
+  onToggle,
+  onDelete,
+}: {
+  announcement: AdminAnnouncement;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const visible = isAnnouncementVisible(announcement);
+
+  return (
+    <article className="rounded-xl border border-border/60 bg-card/60 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold">{announcement.title}</h3>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                visible
+                  ? "bg-accent/10 text-accent"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {visible ? "Syns" : announcement.is_active ? "Utgången" : "Dold"}
+            </span>
+          </div>
+          <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+            {formatDateTime(announcement.created_at)}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            title={announcement.is_active ? "Dölj meddelande" : "Visa meddelande"}
+            onClick={onToggle}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {announcement.is_active ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+          <button
+            type="button"
+            title="Ta bort meddelande"
+            onClick={onDelete}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+        {announcement.body}
+      </p>
+    </article>
+  );
+}
+
 function Input({
   label,
   value,
@@ -828,6 +1065,38 @@ function Input({
   );
 }
 
+function Textarea({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required
+        maxLength={600}
+        rows={5}
+        className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 outline-none focus:border-accent"
+      />
+      <span className="mt-1 block text-right text-[10px] text-muted-foreground">
+        {value.length}/600
+      </span>
+    </label>
+  );
+}
+
 function ScoreInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <input
@@ -855,4 +1124,12 @@ function formatDateTime(value: string) {
     dateStyle: "short",
     timeStyle: "short",
   });
+}
+
+function isAnnouncementVisible(announcement: AdminAnnouncement) {
+  return announcement.is_active && new Date(announcement.created_at).getTime() >= getAnnouncementCutoffTime();
+}
+
+function getAnnouncementCutoffTime() {
+  return Date.now() - 24 * 60 * 60 * 1000;
 }
