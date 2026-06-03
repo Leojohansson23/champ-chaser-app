@@ -63,7 +63,7 @@ function RulesPage() {
           icon={<Medal className="size-4" />}
           title="Poäng för matchtips"
           items={[
-            "3 poäng för helt rätt resultat.",
+            "2 poäng för helt rätt resultat.",
             "1 poäng för rätt 1X2, alltså rätt vinnare eller oavgjort.",
             "0 poäng om utfallet är fel.",
             "Poängen uppdateras när slutresultatet är inlagt.",
