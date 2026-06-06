@@ -18,6 +18,7 @@ import {
   Pin,
   Send,
   ShieldCheck,
+  SmilePlus,
   Target,
   Trash2,
   Trophy,
@@ -71,6 +72,14 @@ type AdminAnnouncement = {
   created_at: string;
 };
 
+type AnnouncementReaction = {
+  id: string;
+  announcement_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+};
+
 type PredictionWithMatch = {
   user_id: string;
   predicted_home: number;
@@ -94,6 +103,7 @@ function HomePage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [announcements, setAnnouncements] = useState<AdminAnnouncement[]>([]);
+  const [announcementReactions, setAnnouncementReactions] = useState<AnnouncementReaction[]>([]);
   const [prizePot, setPrizePot] = useState(0);
   const [entryFee, setEntryFee] = useState(0);
   const [paidCount, setPaidCount] = useState(0);
@@ -120,6 +130,7 @@ function HomePage() {
       { data: sideBetAnswerRows },
       { data: commentRows },
       { data: announcementRows },
+      { data: announcementReactionRows },
       { data: entryFeeSetting },
       { data: profiles },
     ] = await Promise.all([
@@ -140,6 +151,10 @@ function HomePage() {
         .eq("is_active", true)
         .gte("created_at", getAnnouncementCutoff())
         .order("created_at", { ascending: false }),
+      db
+        .from("admin_announcement_reactions")
+        .select("id, announcement_id, user_id, emoji, created_at")
+        .order("created_at", { ascending: true }),
       db.from("app_settings").select("value").eq("key", "entry_fee").maybeSingle(),
       db.from("profiles").select("id, is_paid"),
     ]);
@@ -163,6 +178,7 @@ function HomePage() {
     );
     setComments((commentRows ?? []) as CommentRow[]);
     setAnnouncements((announcementRows ?? []) as AdminAnnouncement[]);
+    setAnnouncementReactions((announcementReactionRows ?? []) as AnnouncementReaction[]);
     const fee = Number(entryFeeSetting?.value?.amount ?? 100);
     const paid = ((profiles ?? []) as Array<{ id: string; is_paid: boolean }>).filter(
       (profile) => profile.is_paid,
@@ -184,6 +200,11 @@ function HomePage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "side_bet_answers" }, loadHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, loadHome)
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_announcements" }, loadHome)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_announcement_reactions" },
+        loadHome,
+      )
       .subscribe();
 
     return () => {
@@ -259,6 +280,30 @@ function HomePage() {
     else loadHome();
   };
 
+  const toggleAnnouncementReaction = async (announcementId: string, emoji: string) => {
+    const normalizedEmoji = emoji.trim();
+    if (!normalizedEmoji) return;
+
+    const existing = announcementReactions.find(
+      (reaction) =>
+        reaction.announcement_id === announcementId && reaction.user_id === user.id,
+    );
+
+    const { error } = existing
+      ? existing.emoji === normalizedEmoji
+        ? await db.from("admin_announcement_reactions").delete().eq("id", existing.id)
+        : await db
+            .from("admin_announcement_reactions")
+            .update({ emoji: normalizedEmoji })
+            .eq("id", existing.id)
+      : await db
+          .from("admin_announcement_reactions")
+          .insert({ announcement_id: announcementId, user_id: user.id, emoji: normalizedEmoji });
+
+    if (error) toast.error(error.message);
+    else loadHome();
+  };
+
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur">
@@ -300,7 +345,14 @@ function HomePage() {
         )}
       </section>
 
-      {announcements.length > 0 && <AdminAnnouncementsPanel announcements={announcements} />}
+      {announcements.length > 0 && (
+        <AdminAnnouncementsPanel
+          announcements={announcements}
+          reactions={announcementReactions}
+          currentUserId={user.id}
+          onReactionToggle={toggleAnnouncementReaction}
+        />
+      )}
 
       <section className="rounded-2xl border border-border/60 bg-card/45 p-4 backdrop-blur">
         <div className="flex items-start justify-between gap-3">
@@ -672,8 +724,14 @@ function HomeRuleItem({ icon, title, text }: { icon: ReactNode; title: string; t
 
 function AdminAnnouncementsPanel({
   announcements,
+  reactions,
+  currentUserId,
+  onReactionToggle,
 }: {
   announcements: AdminAnnouncement[];
+  reactions: AnnouncementReaction[];
+  currentUserId: string;
+  onReactionToggle: (announcementId: string, emoji: string) => void;
 }) {
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState(announcements[0]?.id ?? "");
   const [previousOpen, setPreviousOpen] = useState(false);
@@ -710,6 +768,12 @@ function AdminAnnouncementsPanel({
             <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-snug text-foreground/90">
               {featured.body}
             </p>
+            <AnnouncementReactions
+              announcementId={featured.id}
+              reactions={reactions.filter((reaction) => reaction.announcement_id === featured.id)}
+              currentUserId={currentUserId}
+              onReactionToggle={onReactionToggle}
+            />
           </div>
         </div>
       </article>
@@ -752,6 +816,147 @@ function AdminAnnouncementsPanel({
       )}
     </section>
   );
+}
+
+const QUICK_REACTION_EMOJIS = [
+  "❤️",
+  "🔥",
+  "😂",
+  "👏",
+  "😍",
+  "😮",
+  "😢",
+  "😡",
+  "🏆",
+  "⚽",
+  "🍻",
+  "🎯",
+];
+
+function AnnouncementReactions({
+  announcementId,
+  reactions,
+  currentUserId,
+  onReactionToggle,
+}: {
+  announcementId: string;
+  reactions: AnnouncementReaction[];
+  currentUserId: string;
+  onReactionToggle: (announcementId: string, emoji: string) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [customEmoji, setCustomEmoji] = useState("");
+  const groupedReactions = useMemo(() => {
+    const groups = new Map<string, { count: number; reactedByMe: boolean }>();
+
+    for (const reaction of reactions) {
+      const group = groups.get(reaction.emoji) ?? { count: 0, reactedByMe: false };
+      group.count += 1;
+      group.reactedByMe ||= reaction.user_id === currentUserId;
+      groups.set(reaction.emoji, group);
+    }
+
+    return Array.from(groups.entries()).sort(
+      ([emojiA, groupA], [emojiB, groupB]) =>
+        groupB.count - groupA.count || emojiA.localeCompare(emojiB),
+    );
+  }, [currentUserId, reactions]);
+
+  const addReaction = (emoji: string) => {
+    const normalizedEmoji = emoji.trim();
+    if (!normalizedEmoji) return;
+    if (!isEmojiReaction(normalizedEmoji)) {
+      toast.error("Använd bara emojis som reaktion");
+      return;
+    }
+    onReactionToggle(announcementId, normalizedEmoji);
+    setCustomEmoji("");
+    setPickerOpen(false);
+  };
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {groupedReactions.map(([emoji, group]) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => addReaction(emoji)}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-sm font-semibold transition active:scale-[0.98] ${
+              group.reactedByMe
+                ? "border-accent/60 bg-accent/15 text-accent"
+                : "border-border/60 bg-background/40 text-foreground hover:border-accent/40 hover:bg-card"
+            }`}
+            aria-pressed={group.reactedByMe}
+            title={group.reactedByMe ? "Ta bort din reaktion" : "Lägg till reaktion"}
+          >
+            <span className="text-base leading-none">{emoji}</span>
+            <span className="tabular-nums">{group.count}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setPickerOpen((open) => !open)}
+          className="inline-flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background/40 text-muted-foreground transition hover:border-accent/40 hover:bg-card hover:text-accent"
+          title="Lägg till reaktion"
+          aria-label="Lägg till reaktion"
+        >
+          <SmilePlus className="size-4" />
+        </button>
+      </div>
+
+      {pickerOpen && (
+        <div className="rounded-xl border border-border/60 bg-background/65 p-2 shadow-lg shadow-black/15">
+          <div className="grid grid-cols-6 gap-1 sm:flex sm:flex-wrap">
+            {QUICK_REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => addReaction(emoji)}
+                className="flex size-9 items-center justify-center rounded-lg text-lg transition hover:bg-secondary active:scale-95"
+                aria-label={`Reagera med ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              addReaction(customEmoji);
+            }}
+            className="mt-2 flex gap-1.5"
+          >
+            <input
+              value={customEmoji}
+              onChange={(event) => setCustomEmoji(event.target.value)}
+              maxLength={32}
+              placeholder="Valfri emoji"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-input px-2.5 py-2 text-sm outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              disabled={!customEmoji.trim()}
+              className="rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              Lägg till
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function isEmojiReaction(value: string) {
+  const normalizedValue = value.trim();
+  if (!normalizedValue || normalizedValue.length > 32) return false;
+  const withoutEmojiParts = normalizedValue.replace(
+    /[\p{Extended_Pictographic}\p{Emoji_Component}\uFE0F\u200D]/gu,
+    "",
+  );
+
+  return withoutEmojiParts.length === 0 && /\p{Extended_Pictographic}/u.test(normalizedValue);
 }
 
 function AdminAnnouncementMini({
