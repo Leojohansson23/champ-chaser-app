@@ -24,15 +24,6 @@ type Row = {
   side_bet_count?: number;
   side_bet_points?: number;
 };
-type PredictionWithMatch = {
-  user_id: string;
-  predicted_home: number;
-  predicted_away: number;
-  matches: {
-    home_score: number | null;
-    away_score: number | null;
-  } | null;
-};
 type SideBetAnswer = {
   user_id: string;
   points: number;
@@ -53,15 +44,11 @@ function LeaderboardPage() {
   const load = async () => {
     const [
       { data: leaderboard },
-      { data: predictions },
       { data: sideBetAnswers },
       { data: entryFeeSetting },
       { data: profiles },
     ] = await Promise.all([
       supabase.from("leaderboard").select("*"),
-      supabase
-        .from("predictions")
-        .select("user_id, predicted_home, predicted_away, matches(home_score, away_score)"),
       (supabase as any).from("side_bet_answers").select("user_id, points"),
       (supabase as any).from("app_settings").select("value").eq("key", "entry_fee").maybeSingle(),
       (supabase as any).from("profiles").select("id, is_paid"),
@@ -73,14 +60,10 @@ function LeaderboardPage() {
     setEntryFee(fee);
     setPaidCount(paid);
     setPrizePot(fee * paid);
-    const stats = buildPredictionStats((predictions ?? []) as unknown as PredictionWithMatch[]);
     const sideBetStats = buildSideBetStats((sideBetAnswers ?? []) as SideBetAnswer[]);
     const sorted = ((leaderboard ?? []) as Row[])
       .map((row) => ({
         ...row,
-        total_points: (stats[row.user_id]?.points ?? 0) + (sideBetStats[row.user_id]?.points ?? 0),
-        exact_count: stats[row.user_id]?.exact ?? 0,
-        sign_count: stats[row.user_id]?.sign ?? 0,
         side_bet_count: sideBetStats[row.user_id]?.count ?? 0,
         side_bet_points: sideBetStats[row.user_id]?.points ?? 0,
       }))
@@ -191,40 +174,6 @@ function formatPrizePot(amount: number) {
     currency: "SEK",
     maximumFractionDigits: 0,
   }).format(amount);
-}
-
-function buildPredictionStats(predictions: PredictionWithMatch[]) {
-  const stats: Record<string, { exact: number; sign: number; points: number }> = {};
-
-  for (const prediction of predictions) {
-    const match = prediction.matches;
-    if (!match || match.home_score === null || match.away_score === null) continue;
-
-    const userStats = stats[prediction.user_id] ?? { exact: 0, sign: 0, points: 0 };
-    const exact =
-      prediction.predicted_home === match.home_score &&
-      prediction.predicted_away === match.away_score;
-    const predictedSign = getSign(prediction.predicted_home, prediction.predicted_away);
-    const actualSign = getSign(match.home_score, match.away_score);
-
-    if (exact) {
-      userStats.exact += 1;
-      userStats.points += 3;
-    } else if (predictedSign === actualSign) {
-      userStats.points += 1;
-    }
-    if (predictedSign === actualSign) userStats.sign += 1;
-
-    stats[prediction.user_id] = userStats;
-  }
-
-  return stats;
-}
-
-function getSign(home: number, away: number) {
-  if (home > away) return "1";
-  if (home < away) return "2";
-  return "X";
 }
 
 function buildSideBetStats(answers: SideBetAnswer[]) {
