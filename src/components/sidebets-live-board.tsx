@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TeamWithFlag } from "@/lib/flags";
-import { Flame, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ChevronDown, Flame, ShieldAlert, ShieldCheck } from "lucide-react";
 
 type Match = {
   id: string;
@@ -293,6 +293,10 @@ function ManualCategoryTable({
   valueLabel: string;
   rows: ManualEntry[];
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = category !== "red_cards" && rows.length > 5;
+  const visibleRows = canExpand && !expanded ? rows.slice(0, 5) : rows;
+
   return (
     <section className="rounded-2xl border border-border/60 bg-card/60 p-4 backdrop-blur">
       <h4 className="font-display text-lg text-accent">{title}</h4>
@@ -302,28 +306,44 @@ function ManualCategoryTable({
           Inga rader ännu.
         </div>
       ) : (
-        <ol className="mt-3 space-y-1.5">
-          {rows.map((row, index) => (
-            <li key={row.id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2">
-              {category === "red_cards" ? (
-                <div
-                  aria-hidden
-                  className="h-5 w-3 shrink-0 rounded-[2px] border border-red-700 bg-red-500"
-                />
-              ) : (
-                <div className="flex size-6 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-accent">
-                  {index + 1}
+        <div className="mt-3 space-y-2">
+          <ol className="space-y-1.5">
+            {visibleRows.map((row, index) => (
+              <li
+                key={row.id}
+                className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2"
+              >
+                {category === "red_cards" ? (
+                  <div
+                    aria-hidden
+                    className="h-5 w-3 shrink-0 rounded-[2px] border border-red-700 bg-red-500"
+                  />
+                ) : (
+                  <div className="flex size-6 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-accent">
+                    {index + 1}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 break-words text-sm font-medium">
+                  {category === "red_cards" ? "Röda kort totalt:" : row.label}
                 </div>
-              )}
-              <div className="min-w-0 flex-1 break-words text-sm font-medium">
-                {category === "red_cards" ? "Röda kort totalt:" : row.label}
-              </div>
-              <div className="text-sm font-semibold text-accent">
-                {row.value} {valueLabel}
-              </div>
-            </li>
-          ))}
-        </ol>
+                <div className="text-sm font-semibold text-accent">
+                  {row.value} {valueLabel}
+                </div>
+              </li>
+            ))}
+          </ol>
+          {canExpand && (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((current) => !current)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background/20 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-accent/40 hover:text-accent"
+            >
+              {expanded ? "Visa topp 5" : `Visa alla (${rows.length})`}
+              <ChevronDown className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        </div>
       )}
     </section>
   );
@@ -334,4 +354,3 @@ const GROUP_STAGE_NAMES = new Set(["A", "B", "C", "D", "E", "F", "G", "H"]);
 function isGroupStageMatch(groupName: string) {
   return GROUP_STAGE_NAMES.has((groupName ?? "").trim().toUpperCase());
 }
-

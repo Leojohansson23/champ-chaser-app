@@ -141,7 +141,12 @@ function HomePage() {
     setMatches((matchRows ?? []) as Match[]);
     setLeaderboard(
       ((leaderboardRows ?? []) as LeaderboardRow[])
-        .sort((a, b) => b.total_points - a.total_points || (b.exact_count ?? 0) - (a.exact_count ?? 0))
+        .sort(
+          (a, b) =>
+            b.total_points - a.total_points ||
+            (b.exact_count ?? 0) - (a.exact_count ?? 0) ||
+            a.username.localeCompare(b.username, "sv-SE"),
+        )
         .slice(0, 10),
     );
     setComments((commentRows ?? []) as CommentRow[]);

@@ -67,7 +67,12 @@ function LeaderboardPage() {
         side_bet_count: sideBetStats[row.user_id]?.count ?? 0,
         side_bet_points: sideBetStats[row.user_id]?.points ?? 0,
       }))
-      .sort((a, b) => b.total_points - a.total_points || b.exact_count - a.exact_count);
+      .sort(
+        (a, b) =>
+          b.total_points - a.total_points ||
+          (b.exact_count ?? 0) - (a.exact_count ?? 0) ||
+          a.username.localeCompare(b.username, "sv-SE"),
+      );
     setRows(sorted);
   };
 
@@ -103,6 +108,9 @@ function LeaderboardPage() {
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Live</p>
           <h1 className="font-display text-3xl">Topplista</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Vid lika poäng avgör flest rätt resultat (3 poängare).
+          </p>
         </div>
         <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-right">
           <div className="flex items-center justify-end gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
