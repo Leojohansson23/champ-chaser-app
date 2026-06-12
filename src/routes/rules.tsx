@@ -98,7 +98,7 @@ function RulesPage() {
             "Topplistan visar alla deltagare samt deras poäng.",
             "Här kan man klicka in på andra deltagare och se deras tippning efter att deadlinen har stängt.",
             "Man kan även följa och se andras poäng man plockat på alla matcher samt sidospel.",
-            "Vid lika poäng avgör flest rätt resultat (3 poängare). Om även det är lika sorteras deltagarna i bokstavsordning.",
+            "Vid lika poäng avgör flest rätt resultat (3 poängare).",
           ]}
         />
         <InfoCard
