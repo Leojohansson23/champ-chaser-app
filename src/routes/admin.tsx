@@ -100,6 +100,15 @@ function getManualRowsForCategory(rows: ManualEntry[], category: ManualEntryCate
   const total = filtered.reduce((sum, row) => sum + row.value, 0);
   return [{ ...filtered[0], label: "Totalt", value: total }];
 }
+
+function cleanManualEntryLabel(label: string) {
+  return label.trim().replace(/\s+/g, " ");
+}
+
+function normalizeManualEntryLabel(label: string) {
+  return cleanManualEntryLabel(label).toLocaleLowerCase("sv-SE");
+}
+
 function AdminPage() {
   const { user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
@@ -414,8 +423,9 @@ function AdminPage() {
       return;
     }
     const draftValue = manualDrafts[category];
-    const label = category === "red_cards" ? "Totalt" : draftValue.label.trim();
+    const label = category === "red_cards" ? "Totalt" : cleanManualEntryLabel(draftValue.label);
     const value = Number(draftValue.value);
+    const roundedValue = Math.round(value);
 
     if (!label) {
       toast.error("Skriv ett namn");
@@ -427,24 +437,38 @@ function AdminPage() {
     }
 
     const existingRows = manualEntries.filter((entry) => entry.category === category);
+    const existingEntry =
+      category === "red_cards"
+        ? existingRows[0]
+        : existingRows.find(
+            (entry) => normalizeManualEntryLabel(entry.label) === normalizeManualEntryLabel(label),
+          );
     let error: { message: string } | null = null;
+    let addedToExisting = false;
 
-    if (category === "red_cards" && existingRows.length > 0) {
+    if (category === "red_cards" && existingEntry) {
       const { error: updateError } = await db
         .from("sidebet_live_manual_entries")
-        .update({ label, value: Math.round(value) })
-        .eq("id", existingRows[0].id);
+        .update({ label, value: roundedValue })
+        .eq("id", existingEntry.id);
       error = updateError;
 
       if (!updateError && existingRows.length > 1) {
         const extras = existingRows.slice(1).map((entry) => entry.id);
         await db.from("sidebet_live_manual_entries").delete().in("id", extras);
       }
+    } else if (existingEntry) {
+      const { error: updateError } = await db
+        .from("sidebet_live_manual_entries")
+        .update({ label: existingEntry.label, value: existingEntry.value + roundedValue })
+        .eq("id", existingEntry.id);
+      error = updateError;
+      addedToExisting = true;
     } else {
       const { error: insertError } = await db.from("sidebet_live_manual_entries").insert({
         category,
         label,
-        value: Math.round(value),
+        value: roundedValue,
         created_by: user?.id ?? null,
       });
       error = insertError;
@@ -456,7 +480,7 @@ function AdminPage() {
     }
 
     setManualDraft(category, { label: "", value: "" });
-    toast.success("Rad tillagd");
+    toast.success(addedToExisting ? "Befintlig rad uppdaterad" : "Rad tillagd");
     loadManualEntries();
   };
 
@@ -489,8 +513,8 @@ function AdminPage() {
   const updateManualEntry = async (entryId: string, label: string, value: number) => {
     const entry = manualEntries.find((row) => row.id === entryId);
     const isRedCards = entry?.category === "red_cards";
-    const normalizedLabel = isRedCards ? "Totalt" : label.trim();
-    if (!normalizedLabel) {
+    const cleanedLabel = isRedCards ? "Totalt" : cleanManualEntryLabel(label);
+    if (!cleanedLabel) {
       toast.error("Skriv ett namn");
       return false;
     }
@@ -499,9 +523,44 @@ function AdminPage() {
       return false;
     }
 
+    const duplicateEntry = manualEntries.find(
+      (row) =>
+        entry &&
+        row.id !== entryId &&
+        row.category === entry.category &&
+        row.category !== "red_cards" &&
+        normalizeManualEntryLabel(row.label) === normalizeManualEntryLabel(cleanedLabel),
+    );
+
+    if (duplicateEntry) {
+      const { error: updateDuplicateError } = await db
+        .from("sidebet_live_manual_entries")
+        .update({ value: duplicateEntry.value + Math.round(value) })
+        .eq("id", duplicateEntry.id);
+
+      if (updateDuplicateError) {
+        toast.error(updateDuplicateError.message);
+        return false;
+      }
+
+      const { error: deleteMergedError } = await db
+        .from("sidebet_live_manual_entries")
+        .delete()
+        .eq("id", entryId);
+
+      if (deleteMergedError) {
+        toast.error(deleteMergedError.message);
+        return false;
+      }
+
+      toast.success("Rader sammanslagna");
+      loadManualEntries();
+      return true;
+    }
+
     const { error } = await db
       .from("sidebet_live_manual_entries")
-      .update({ label: normalizedLabel, value: Math.round(value) })
+      .update({ label: cleanedLabel, value: Math.round(value) })
       .eq("id", entryId);
 
     if (error) {
@@ -1264,6 +1323,19 @@ function AdminManualEntriesSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editValue, setEditValue] = useState("");
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const datalistId = `manual-entry-options-${category}`;
+  const normalizedSearch = normalizeManualEntryLabel(search);
+  const filteredRows =
+    category === "red_cards" || !normalizedSearch
+      ? rows
+      : rows.filter((entry) => normalizeManualEntryLabel(entry.label).includes(normalizedSearch));
+  const visibleRows =
+    category === "red_cards" || showAll || normalizedSearch
+      ? filteredRows
+      : filteredRows.slice(0, 8);
+  const hiddenRowCount = filteredRows.length - visibleRows.length;
 
   const startEdit = (entry: ManualEntry) => {
     setEditingId(entry.id);
@@ -1285,14 +1357,31 @@ function AdminManualEntriesSection({
 
   return (
     <section className="rounded-xl border border-border/60 bg-background/30 p-4">
-      <h3 className="font-display text-lg text-accent">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-display text-lg text-accent">{title}</h3>
+        <span className="rounded-full border border-border/60 px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          {rows.length} rader
+        </span>
+      </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2">
         {category !== "red_cards" && (
           <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setShowAll(false);
+            }}
+            placeholder="Sök spelare"
+            className="h-10 min-w-0 rounded-lg border border-border bg-background/40 px-3 text-sm outline-none focus:border-accent"
+          />
+        )}
+        {category !== "red_cards" && (
+          <input
             value={draft.label}
             onChange={(event) => onDraftChange({ label: event.target.value })}
-            placeholder="Namn"
+            placeholder="Namn eller befintlig spelare"
+            list={datalistId}
             className="h-10 min-w-0 rounded-lg border border-border bg-input px-3 text-sm outline-none focus:border-accent"
           />
         )}
@@ -1313,16 +1402,24 @@ function AdminManualEntriesSection({
         </button>
       </div>
 
-      {rows.length === 0 ? (
+      {category !== "red_cards" && (
+        <datalist id={datalistId}>
+          {rows.map((entry) => (
+            <option key={entry.id} value={entry.label} />
+          ))}
+        </datalist>
+      )}
+
+      {visibleRows.length === 0 ? (
         <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-          Inga rader ännu.
+          {rows.length === 0 ? "Inga rader ännu." : "Ingen spelare matchar sökningen."}
         </div>
       ) : (
-        <div className="mt-3 space-y-2.5">
-          {rows.map((entry, index) => (
+        <div className="mt-3 space-y-1.5">
+          {visibleRows.map((entry, index) => (
             <div
               key={entry.id}
-              className="rounded-lg border border-border/60 bg-card/60 px-3 py-2.5"
+              className="rounded-lg border border-border/60 bg-card/60 px-2.5 py-2"
             >
               {editingId === entry.id ? (
                 <div className="space-y-2">
@@ -1332,6 +1429,7 @@ function AdminManualEntriesSection({
                         value={editLabel}
                         onChange={(event) => setEditLabel(event.target.value)}
                         placeholder="Namn"
+                        list={datalistId}
                         className="h-10 min-w-0 rounded-md border border-border bg-input px-2.5 text-sm outline-none focus:border-accent"
                       />
                     )}
@@ -1364,8 +1462,8 @@ function AdminManualEntriesSection({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
                     {category === "red_cards" ? (
                       <div
                         aria-hidden
@@ -1383,12 +1481,12 @@ function AdminManualEntriesSection({
                       {entry.value} {valueLabel}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
                     <button
                       type="button"
                       title="Redigera rad"
                       onClick={() => startEdit(entry)}
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-accent"
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-accent"
                     >
                       <Pencil className="size-3.5" /> Redigera
                     </button>
@@ -1396,7 +1494,7 @@ function AdminManualEntriesSection({
                       type="button"
                       title="Ta bort rad"
                       onClick={() => onDelete(entry.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-destructive"
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="size-3.5" /> Ta bort
                     </button>
@@ -1405,6 +1503,24 @@ function AdminManualEntriesSection({
               )}
             </div>
           ))}
+          {hiddenRowCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="mt-1 w-full rounded-lg border border-border/60 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-accent"
+            >
+              Visa alla {filteredRows.length} rader
+            </button>
+          )}
+          {showAll && category !== "red_cards" && !normalizedSearch && rows.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(false)}
+              className="mt-1 w-full rounded-lg border border-border/60 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-accent"
+            >
+              Visa färre
+            </button>
+          )}
         </div>
       )}
     </section>
