@@ -213,7 +213,7 @@ function SideBetCard({ bet, answer, saving, onAnswer }: {
         <div className="mt-3 grid gap-2">
           {bet.options.map(option => {
             const selected = answer?.answer === option;
-            const correct = resolved && bet.correct_answer === option;
+            const correct = resolved && isCorrectSideBetAnswer(option, bet.correct_answer);
             const wrongSelected = resolved && selected && !correct;
             return (
               <button
@@ -258,7 +258,10 @@ function SideBetCard({ bet, answer, saving, onAnswer }: {
 
       {resolved && (
         <div className="mt-3 text-xs text-muted-foreground">
-          Rätt svar: <span className="font-semibold text-foreground">{bet.correct_answer}</span>
+          Rätt svar:{" "}
+          <span className="font-semibold text-foreground">
+            {formatCorrectAnswers(bet.correct_answer)}
+          </span>
           {answer ? <> · Du fick {answer.points}p</> : null}
         </div>
       )}
@@ -282,6 +285,29 @@ function getTextAnswerStyle(bet: SideBet, answer?: SideBetAnswer) {
 
 function isLocked(bet: SideBet) {
   return new Date() >= new Date(bet.deadline) || bet.correct_answer !== null;
+}
+
+function isCorrectSideBetAnswer(answer: string, correctAnswer: string | null) {
+  if (!correctAnswer) return false;
+  const normalizedAnswer = normalizeSideBetAnswer(answer);
+  return getCorrectAnswerParts(correctAnswer).some(
+    (part) => normalizeSideBetAnswer(part) === normalizedAnswer,
+  );
+}
+
+function formatCorrectAnswers(correctAnswer: string | null) {
+  return getCorrectAnswerParts(correctAnswer).join(", ") || "-";
+}
+
+function getCorrectAnswerParts(correctAnswer: string | null) {
+  return (correctAnswer ?? "")
+    .split(/[,;|\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function normalizeSideBetAnswer(answer: string) {
+  return answer.trim().toLocaleLowerCase("sv-SE");
 }
 
 function formatDeadline(deadline: string) {

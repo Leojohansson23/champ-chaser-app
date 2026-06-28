@@ -150,9 +150,9 @@ export function SideBetsLiveBoard() {
     );
 
     return {
-      topScoringTeams: byScored.slice(0, 3),
-      topConcedingTeams: byConceded.slice(0, 3),
-      topLeastConcedingTeams: byLeastConceded.slice(0, 3),
+      topScoringTeams: getTopRowsWithTies(byScored, "goalsFor"),
+      topConcedingTeams: getTopRowsWithTies(byConceded, "goalsAgainst"),
+      topLeastConcedingTeams: getTopRowsWithTies(byLeastConceded, "goalsAgainst", true),
     };
   }, [matches]);
 
@@ -266,10 +266,10 @@ function TeamMetricTable({
           {rows.map((row, index) => (
             <li key={row.team} className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2">
               <div className="flex size-6 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-accent">
-                {index + 1}
+                {getTeamMetricRank(rows, index, valueKey)}
               </div>
               <div className="min-w-0 flex-1 text-sm font-medium">
-                <TeamWithFlag team={row.team} wrap />
+                <TeamWithFlag team={row.team} textClassName="break-words" />
               </div>
               <div className={`text-sm font-semibold ${ascending ? "text-emerald-400" : "text-accent"}`}>
                 {row[valueKey]} {valueLabel}
@@ -349,7 +349,27 @@ function ManualCategoryTable({
   );
 }
 
-const GROUP_STAGE_NAMES = new Set(["A", "B", "C", "D", "E", "F", "G", "H"]);
+function getTopRowsWithTies(
+  rows: TeamStat[],
+  valueKey: "goalsFor" | "goalsAgainst",
+  ascending = false,
+) {
+  if (rows.length <= 3) return rows;
+  const cutoff = rows[2][valueKey];
+  return rows.filter((row) => (ascending ? row[valueKey] <= cutoff : row[valueKey] >= cutoff));
+}
+
+function getTeamMetricRank(
+  rows: TeamStat[],
+  index: number,
+  valueKey: "goalsFor" | "goalsAgainst",
+) {
+  const value = rows[index][valueKey];
+  const firstIndexWithValue = rows.findIndex((row) => row[valueKey] === value);
+  return firstIndexWithValue + 1;
+}
+
+const GROUP_STAGE_NAMES = new Set(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]);
 
 function isGroupStageMatch(groupName: string) {
   return GROUP_STAGE_NAMES.has((groupName ?? "").trim().toUpperCase());

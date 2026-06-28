@@ -426,7 +426,10 @@ function SideBetResultCard({ bet, number }: { bet: DisplaySideBet; number: numbe
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <DetailStat className={status.answerStat} label="Svar" value={answer?.answer ?? "-"} />
-        <DetailStat label="Rätt svar" value={resolved ? (bet.correct_answer ?? "-") : "-"} />
+        <DetailStat
+          label="Rätt svar"
+          value={resolved ? formatCorrectAnswers(bet.correct_answer) : "-"}
+        />
       </div>
 
       <div className={`mt-3 rounded-lg px-3 py-2 text-center text-xs font-semibold ${status.note}`}>
@@ -567,4 +570,14 @@ function getSideBetStatus(bet: DisplaySideBet) {
 
 function formatDeadline(deadline: string) {
   return new Date(deadline).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatCorrectAnswers(correctAnswer: string | null) {
+  return (
+    (correctAnswer ?? "")
+      .split(/[,;|\n]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(", ") || "-"
+  );
 }

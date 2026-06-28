@@ -1227,7 +1227,7 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
           label="Rätt svar"
           value={correct}
           onChange={setCorrect}
-          placeholder="Skriv rätt svar"
+          placeholder="Mexiko, Spanien"
           required={false}
         />
         <button
@@ -1238,6 +1238,9 @@ function AdminSideBetRow({ sideBet, onChange }: { sideBet: SideBet; onChange: ()
           <Save className="size-3.5" /> Spara
         </button>
       </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Flera rätta svar kan separeras med komma eller semikolon.
+      </p>
     </div>
   );
 }
